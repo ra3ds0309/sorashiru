@@ -60,12 +60,10 @@
       z-index: 3;
     }
 
-    /* ✨ エディタから出力された最新デザインの反映 
-       ※地名（.city-name）は不要になったため削除しました
-    */
+    /* ✨ エディタの設定を反映させた都市ピンのスタイル（地名枠は削除） ✨ */
     .city-pin {
       position: absolute;
-      width: 120px;
+      width: 120px; /* エディタでの設定値 */
       text-align: center;
       display: flex;
       flex-direction: column;
@@ -73,37 +71,35 @@
       transform: translate(-50%, -50%);
     }
 
-    /* アイコンサイズと影の設定（気温に影がつかないよう、アイコン単体に適用） */
+    /* ✨ 天気アイコンのスタイル（エディタのサイズと影設定を反映） ✨ */
     .city-icon {
-      width: 104px;
-      height: 104px;
-      filter: drop-shadow(0px 4px 0px rgba(0,0,0,0));
+      width: 104px; /* エディタでの設定値 */
+      height: 104px; /* エディタでの設定値 */
+      filter: drop-shadow(0px 4px 0px rgba(0,0,0,0)); /* エディタでの設定値（影なし） */
     }
 
-    /* ✨ 気温のレイアウト（Roboto適用、影なし、スキマ調整、一桁ズレ対策）
-    */
+    /* ✨ 気温テキストのスタイル（Roboto・影なし・サイズ・ズレ防止対策） ✨ */
     .city-temp {
       font-family: 'Roboto', sans-serif;
-      font-size: 30px;
+      font-size: 30px; /* エディタでの設定値 */
       font-weight: bold;
-      margin-top: -15px; /* アイコンとのスキマ */
+      margin-top: -15px; /* エディタでの設定値（アイコンとのスキマ） */
+      text-shadow: none !important; /* 影を完全に削除 */
+      white-space: nowrap;
+      
+      /* 💡 一桁になっても絶対に中央がズレないための表示設定 */
       display: flex;
       justify-content: center;
-      text-shadow: none !important; /* 影を完全に排除 */
+      align-items: center;
     }
-
-    /* 桁数が変わってもズレないように個別の幅を持たせて等幅化 */
-    .t-min, .t-max {
-      display: inline-block;
-      min-width: 40px; 
-      text-align: center;
-    }
-
+    
+    /* 最低気温（青） */
     .t-min {
       color: #5dade2;
-      margin-right: 20px; /* 最低と最高の間のスキマ */
+      margin-right: 15px; /* エディタでの設定値（最高気温とのスキマ） */
     }
-
+    
+    /* 最高気温（赤） */
     .t-max {
       color: #e67e22;
     }
@@ -120,7 +116,7 @@
   </div>
 
   <script>
-    // 🌐 エディタから出力された新しい27都市の座標データ（「℃」や地名なしで綺麗に収まる位置）
+    // 🌐 エディタから出力された最新の座標データ配列（全27都市）
     const targetCities = [
       { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1456, "y": 159 },
       { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1281, "y": 200 },
@@ -163,10 +159,10 @@
       return "200";
     }
 
-    // 🌐 気象庁API連携メイン処理
+    // 🌐 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
     async function loadWeatherData() {
       const container = document.getElementById('content-container');
-      container.innerHTML = ''; 
+      container.innerHTML = ''; // 初期化
 
       console.log("そらしる：気象庁データ同期中...");
 
@@ -178,12 +174,14 @@
           const forecastBlock = json[0];
           const timeSeries = forecastBlock.timeSeries;
           
+          // エリア特定
           let areaData = timeSeries[0].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
           if (!areaData) areaData = timeSeries[0].areas[0];
           
           const weatherCode = areaData.weatherCodes[0]; 
           const finalCode = convertWeatherCode(weatherCode);
 
+          // 気温の取得処理
           let tempMin = "--";
           let tempMax = "--";
           if (timeSeries[2]) {
@@ -195,12 +193,13 @@
             }
           }
 
-          // 📍 ピンのHTML生成（地名「city-name」と「°C」の文字を完全にカットしました）
+          // 📍 HTML要素（ピン）を組み立て
           const pin = document.createElement('div');
           pin.className = 'city-pin';
           pin.style.left = `${city.x}px`;
           pin.style.top = `${city.y}px`;
 
+          // ✨ 【修正】city-name（都市名）と、気温の後ろについていた「°C」の文字を完全に消去しました ✨
           pin.innerHTML = `
             <img class="city-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
             <div class="city-temp">
@@ -208,6 +207,7 @@
             </div>
           `;
 
+          // マップレイヤーにピンを配置
           container.appendChild(pin);
 
         } catch (error) {
