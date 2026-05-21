@@ -2,9 +2,6 @@ name: Take Weather Screenshot and Notify Discord
 
 on:
   schedule:
-    # 毎日2回定期実行（UTC表記）
-    # 1. 日本時間 朝06:00 ➡ UTC 前日21:00
-    # 2. 日本時間 夕18:00 ➡ UTC 当日09:00
     - cron: '0 21 * * *'
     - cron: '0 9 * * *'
   workflow_dispatch: 
@@ -40,14 +37,12 @@ jobs:
 
     - name: Generate Weather Summary via Gemini
       id: gemini_step
-      # 💡 重複していた env を1つに綺麗にまとめました
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         RAW_DATA: ${{ steps.capture_step.outputs.raw_data }}
       run: |
         FILENAME="${{ steps.capture_step.outputs.filename }}"
         
-        # 実行時間から「きょう」か「あす」かを判定
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
         EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
         REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
@@ -57,22 +52,21 @@ jobs:
           TARGET_DAY="あす"
         fi
 
-        # インラインでNode.jsスクリプトを実行
         node -e "
         const { GoogleGenAI } = require('@google/genai');
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         
         async function run() {
           const targetDay = process.argv[1];
-          const prompt = \`以下の日本の各都市の気温データをもとに、テレビの天気ニュースの気象予報士が読み上げるような、自然でわかりやすい【\${targetDay}の全国天気概況】の文章を150文字以内で作成してください。
+          const prompt = \`以下の日本の各都市のリアルタイムな天気予報データをもとに、テレビの天気ニュースの気象予報士が読み上げるような、自然でわかりやすい【\${targetDay}の全国天気概況】の文章を150文字以内で作成してください。
           
-          特徴として、大まかに地方ブロック（沖縄、九州・四国・中国、近畿・中部・関東、北陸・東北、北海道など）をいくつかまとめて天気の傾向（晴れ、曇り、雨など）を伝えるようにしてください。
-          
-          【データ一覧】
+          【与えられた各都市の天気データ】
           \${process.env.RAW_DATA}
-          
-          【出力フォーマット】
-          余計な解説や前置き（'承知しました'など）は一切含めず、天気概要の文章本体のみを出力してください。\`;
+
+          【作成時のルール】
+          1. データに存在する天気の傾向（晴れ、曇り、雨、雪など）を正確に反映させてください。
+          2. 大まかに地方ブロック（沖縄、九州・中国・四国、近畿・中部・関東甲信、北陸・東北、北海道など）をいくつかグループ化して、まとめて天気の傾向を伝えてください。
+          3. '承知しました'や'以下に文章を出力します'などの前置き・解説の言葉は一切省き、指定された天気予報の解説本文のみを出力してください。\`;
 
           try {
             const response = await ai.models.generateContent({
