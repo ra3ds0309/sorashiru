@@ -11,7 +11,6 @@ const path = require('path');
   console.log('ブラウザを起動中...');
   const browser = await puppeteer.launch({
     headless: true,
-    // 💡 ヘッドレス環境でのエラーや言語問題を回避するオプション群
     ignoreHTTPSErrors: true,
     args: [
       '--no-sandbox', 
@@ -23,23 +22,19 @@ const path = require('path');
 
   const page = await browser.browserContexts()[0]?.pages()[0] || await browser.newPage();
 
-  // 画面サイズをぴったり 1920x1080 に固定
+  // 画面サイズを 1920x1080 に固定
   await page.setViewport({ width: 1920, height: 1080 });
-
-  // 💡 日本語フォントが化けないようにブラウザの言語を日本語に強制設定
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'ja-JP,ja;q=0.9' });
 
-  console.log('そらしる天気ページを読み込み中...');
+  console.log('公開されている そらしる天気ページ を読み込み中...');
   await page.goto('https://ra3ds0309.github.io/sorashiru/whether.html', { 
-    waitUntil: 'networkidle0', // 通信が完全に止まるまで待つ
+    waitUntil: 'networkidle0', 
     timeout: 60000 
   });
 
   console.log('気象庁データの同期とDOMの完全描写を待機中...');
-  // 💡 index.html 側で window.weatherDataLoaded = true になるまでループ待機（最大15秒）
   try {
     await page.waitForFunction(() => window.weatherDataLoaded === true, { timeout: 15000 });
-    // フラグが立ってから、画像アセットなどの最終レンダリング安定のためにあと2秒だけ待つ
     await new Promise(resolve => setTimeout(resolve, 2000));
   } catch (e) {
     console.log('⚠️ 描写完了フラグがタイムアウトしました。このままスクショを試みます。');
@@ -60,5 +55,10 @@ const path = require('path');
   await page.screenshot({ path: screenshotPath });
 
   console.log(`保存完了しました: ${screenshotPath}`);
+  
+  // ✨【追加】GitHub Actionsにファイル名を渡すための特殊な出力コマンド
+  console.log(`::set-output name=filepath::${screenshotPath}`);
+  console.log(`::set-output name=filename::${filename}`);
+
   await browser.close();
 })();
