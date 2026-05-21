@@ -9,7 +9,6 @@ on:
     - cron: '0 9 * * *'
   workflow_dispatch: # 手動実行用ボタン
 
-# ✨ Node.js 20の減衰警告を黙らせ、Node.js 24環境で動かすためのグローバル環境変数
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -27,7 +26,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 24 # ✨ Node.js 24にバージョンアップ
+        node-version: 24
 
     - name: Install Dependencies
       run: |
@@ -43,7 +42,6 @@ jobs:
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: |
-        # 最新の outputs 参照方法で取得
         FILEPATH="${{ steps.capture_step.outputs.filepath }}"
         FILENAME="${{ steps.capture_step.outputs.filename }}"
         
@@ -55,12 +53,21 @@ jobs:
         EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
         REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
         
+        # 💡 タイトルの動的切り替えロジック
+        # 発表時間が「17時」なら【あすの天気予報】、それ以外（5時など）なら【きょうの天気予報】
+        if [ "$REPORT_HOUR" -eq 17 ]; then
+          TITLE="【あすの天気予報】"
+        else
+          TITLE="【きょうの天気予報】"
+        fi
+        
+        # 表示用に時間を2桁に整形 (例: 5 ➡ 05)
         if [ "$REPORT_HOUR" -lt 10 ]; then
           REPORT_HOUR="0$REPORT_HOUR"
         fi
 
-        # ご指定のテキストフォーマットに組み立て
-        MESSAGE="【きょうの天気予報】"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"
+        # 📋 指定のテキストフォーマットに組み立て
+        MESSAGE="${TITLE}"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"
         
         echo "Discordへ送信するメッセージ:"
         echo "$MESSAGE"
