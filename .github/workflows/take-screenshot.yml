@@ -31,7 +31,6 @@ jobs:
     - name: Install Dependencies
       run: |
         npm init -y
-        # ✨ puppeteerに加えて、Google公式の最新Gemini SDKをインストール
         npm install puppeteer @google/genai
 
     - name: Take Screenshot
@@ -39,14 +38,14 @@ jobs:
       run: |
         node capture.js
 
-    # ✨【追加】Gemini APIを呼び出して、現在のデータから概要文を生成するステップ
     - name: Generate Weather Summary via Gemini
       id: gemini_step
+      # 💡 重複していた env を1つに綺麗にまとめました
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        RAW_DATA: ${{ steps.capture_step.outputs.raw_data }}
       run: |
         FILENAME="${{ steps.capture_step.outputs.filename }}"
-        RAW_DATA="${{ steps.capture_step.outputs.raw_data }}"
         
         # 実行時間から「きょう」か「あす」かを判定
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
@@ -58,13 +57,14 @@ jobs:
           TARGET_DAY="あす"
         fi
 
-        # インラインで簡易的なNode.jsスクリプトを走らせてGemini APIを叩く
+        # インラインでNode.jsスクリプトを実行
         node -e "
         const { GoogleGenAI } = require('@google/genai');
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         
         async function run() {
-          const prompt = \`以下の日本の各都市の気温データをもとに、テレビの天気ニュースの気象予報士が読み上げるような、自然でわかりやすい【\${process.env.TARGET_DAY}の全国天気概況】の文章を150文字以内で作成してください。
+          const targetDay = process.argv[1];
+          const prompt = \`以下の日本の各都市の気温データをもとに、テレビの天気ニュースの気象予報士が読み上げるような、自然でわかりやすい【\${targetDay}の全国天気概況】の文章を150文字以内で作成してください。
           
           特徴として、大まかに地方ブロック（沖縄、九州・四国・中国、近畿・中部・関東、北陸・東北、北海道など）をいくつかまとめて天気の傾向（晴れ、曇り、雨など）を伝えるようにしてください。
           
@@ -80,19 +80,16 @@ jobs:
               contents: prompt,
             });
             const text = response.text.trim();
-            // GitHub Actionsの環境ファイルに書き込み
             const fs = require('fs');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=' + text.replace(/\n/g, ' ') + '\\n');
           } catch (e) {
             console.error('Gemini API Error:', e);
+            const fs = require('fs');
             fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=全国的におおむね安定した天気となるでしょう。\\n');
           }
         }
         run();
-        "
-      env:
-        TARGET_DAY: ${{ env.TARGET_DAY }}
-        RAW_DATA: ${{ steps.capture_step.outputs.raw_data }}
+        " "$TARGET_DAY"
 
     - name: Send Screenshot to Discord
       env:
@@ -118,7 +115,6 @@ jobs:
           REPORT_HOUR="0$REPORT_HOUR"
         fi
 
-        # 📋 メッセージの組み立てに、Geminiが作った文章（$SUMMARY）を追加！
         MESSAGE="${TITLE}"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"$'\n\n'"$SUMMARY"
         
         echo "Discordへ送信するメッセージ:"
