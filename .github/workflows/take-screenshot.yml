@@ -2,15 +2,12 @@ name: Take Weather Screenshot
 
 on:
   schedule:
-    # 📝 定期実行スケジュール（UTC表記）
-    # 1. 日本時間 朝05:30 ➡ UTC 前日20:30
-    # 2. 日本時間 夕17:30 ➡ UTC 当日08:30
     - cron: '30 20 * * *'
     - cron: '30 8 * * *'
-  workflow_dispatch: # 手動でいつでも実行できるボタンも設置
+  workflow_dispatch:
 
 permissions:
-  contents: write # スクショをリポジトリにプッシュするために必要
+  contents: write
 
 jobs:
   screenshot:
@@ -23,20 +20,16 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-size: 20
+        node-version: 20
 
     - name: Install Dependencies
       run: |
         npm init -y
         npm install puppeteer
 
-    - name: Start Local Server & Take Screenshot
+    - name: Take Screenshot
       run: |
-        # 軽量なHTTPサーバーをバックグラウンドで起動してindex.htmlをホスト
-        npx http-server -p 8080 &
-        # サーバーの起動を少し待つ
-        sleep 3
-        # スクショ実行スクリプトを実行
+        # サーバー起動処理を削除し、直接スクショスクリプトだけを実行
         node capture.js
 
     - name: Commit and Push Screenshot
@@ -44,7 +37,6 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add screenshots/*.png
-        # 差分がある場合のみコミットしてプッシュ
         if ! git diff --cached --quiet; then
           git commit -m "chore: 🌟 天気画面のスクリーンショットを自動保存 [skip ci]"
           git push
