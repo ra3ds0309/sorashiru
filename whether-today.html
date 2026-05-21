@@ -2,7 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる - きょうの天気 (気象庁ダイレクト読込版)</title>
+  <title>そらしる天気</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet">
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; }
@@ -55,41 +60,11 @@
       z-index: 3;
     }
 
-    /* 都市ピンのスタイル */
-    .city-pin {
-      position: absolute;
-      width: 120px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      transform: translate(-50%, -50%);
-    }
-
-    .city-name {
-      background: rgba(0, 0, 0, 0.7);
-      color: #ffffff;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 4px;
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-
-    .city-icon {
-      width: 65px;
-      height: 65px;
-      filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.5));
-    }
-
-    .city-temp {
-      font-size: 16px;
-      font-weight: bold;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-      margin-top: 2px;
-    }
-    .t-min { color: #5dade2; margin-right: 6px; }
+    /* ✨ エディタから出力された最新のデザインCSS（地名スタイルは削除） ✨ */
+    .city-pin { position: absolute; width: 120px; text-align: center; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
+    .city-icon { width: 103px; height: 103px; filter: drop-shadow(0px 4px 0px rgba(0,0,0,0)); }
+    .city-temp { font-family: 'Roboto', sans-serif; font-size: 26px; font-weight: bold; margin-top: -10px; }
+    .t-min { color: #5dade2; margin-right: 20px; }
     .t-max { color: #e67e22; }
   </style>
 </head>
@@ -104,38 +79,38 @@
   </div>
 
   <script>
-    // 1. 全27都市の気象庁データURLと座標マッピング
+    // 🌐 エディタで調整された最新の都市座標データ（targetCities）
     const targetCities = [
-      { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1480, "y": 120 },
-      { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1420, "y": 200 },
-      { "name": "青森", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/020000.json", "x": 1340, "y": 300 },
-      { "name": "盛岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/030000.json", "x": 1350, "y": 350 },
-      { "name": "仙台", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/040000.json", "x": 1280, "y": 420 },
-      { "name": "山形", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/060000.json", "x": 1240, "y": 420 },
-      { "name": "水戸", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/080000.json", "x": 1240, "y": 550 },
-      { "name": "宇都宮", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/090000.json", "x": 1200, "y": 540 },
-      { "name": "東京", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1180, "y": 620 },
-      { "name": "伊豆諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1180, "y": 740 },
-      { "name": "小笠原諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1280, "y": 920 },
-      { "name": "静岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/220000.json", "x": 1100, "y": 660 },
-      { "name": "長野", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/200000.json", "x": 1120, "y": 570 },
-      { "name": "金沢", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/170000.json", "x": 1030, "y": 540 },
-      { "name": "名古屋", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/230000.json", "x": 1020, "y": 650 },
-      { "name": "大阪", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/270000.json", "x": 920, "y": 680 },
-      { "name": "高松", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/370000.json", "x": 820, "y": 740 },
-      { "name": "高知", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/390000.json", "x": 800, "y": 790 },
-      { "name": "松江", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/320000.json", "x": 780, "y": 660 },
-      { "name": "山口", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/350000.json", "x": 680, "y": 710 },
-      { "name": "福岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/400000.json", "x": 620, "y": 720 },
-      { "name": "熊本", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/430000.json", "x": 580, "y": 790 },
-      { "name": "鹿児島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 560, "y": 850 },
-      { "name": "奄美", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 450, "y": 950 },
-      { "name": "那覇", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/471000.json", "x": 300, "y": 900 },
-      { "name": "大東島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/472000.json", "x": 400, "y": 920 },
-      { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 200, "y": 980 }
+      { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1456, "y": 160 },
+      { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1281, "y": 201 },
+      { "name": "青森", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/020000.json", "x": 1168, "y": 344 },
+      { "name": "盛岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/030000.json", "x": 1323, "y": 446 },
+      { "name": "仙台", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/040000.json", "x": 1209, "y": 496 },
+      { "name": "山形", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/060000.json", "x": 1091, "y": 508 },
+      { "name": "水戸", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/080000.json", "x": 1196, "y": 649 },
+      { "name": "宇都宮", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/090000.json", "x": 1081, "y": 663 },
+      { "name": "東京", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1101, "y": 820 },
+      { "name": "伊豆諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1160, "y": 989 },
+      { "name": "小笠原諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1636, "y": 921 },
+      { "name": "静岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/220000.json", "x": 981, "y": 835 },
+      { "name": "長野", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/200000.json", "x": 966, "y": 679 },
+      { "name": "金沢", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/170000.json", "x": 853, "y": 673 },
+      { "name": "名古屋", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/230000.json", "x": 863, "y": 829 },
+      { "name": "大阪", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/270000.json", "x": 743, "y": 856 },
+      { "name": "高松", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/370000.json", "x": 739, "y": 696 },
+      { "name": "高知", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/390000.json", "x": 623, "y": 870 },
+      { "name": "松江", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/320000.json", "x": 626, "y": 691 },
+      { "name": "山口", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/350000.json", "x": 513, "y": 729 },
+      { "name": "福岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/400000.json", "x": 393, "y": 753 },
+      { "name": "熊本", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/430000.json", "x": 385, "y": 914 },
+      { "name": "鹿児島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 501, "y": 896 },
+      { "name": "奄美", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 250, "y": 993 },
+      { "name": "那覇", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/471000.json", "x": 334, "y": 250 },
+      { "name": "大東島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/472000.json", "x": 644, "y": 379 },
+      { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 168, "y": 319 }
     ];
 
-    // 天気コードフォールバック（既存のロジック）
+    // 天気コードフォールバック
     function convertWeatherCode(code) {
       const codeStr = String(code);
       const activeCodes = ["100", "200", "300", "400"]; 
@@ -154,10 +129,8 @@
 
       console.log("そらしる：気象庁データ同期中...");
 
-      // 各都市のデータを順番に並列で取得
       const promises = targetCities.map(async (city) => {
         try {
-          // キャッシュ回避のためにタイムスタンプを付与
           const response = await fetch(`${city.url}?t=${Date.now()}`);
           const json = await response.json();
           
@@ -189,15 +162,14 @@
           pin.style.left = `${city.x}px`;
           pin.style.top = `${city.y}px`;
 
+          // ✨ 【修正】地名のDIVを完全に消去、さらに気温の「°C」表記を除去しました ✨
           pin.innerHTML = `
-            <div class="city-name">${city.name}</div>
             <img class="city-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
             <div class="city-temp">
-              <span class="t-min">${tempMin}°C</span><span class="t-max">${tempMax}°C</span>
+              <span class="t-min">${tempMin}</span><span class="t-max">${tempMax}</span>
             </div>
           `;
 
-          // マップレイヤーにピンを配置
           container.appendChild(pin);
 
         } catch (error) {
@@ -205,12 +177,10 @@
         }
       });
 
-      // すべての都市のフェッチ処理の完了を待機
       await Promise.all(promises);
       console.log("そらしる：すべての天気データをマップに反映しました。");
     }
 
-    // 画面ロード時に実行
     window.addEventListener('DOMContentLoaded', loadWeatherData);
   </script>
 </body>
