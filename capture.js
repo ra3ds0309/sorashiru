@@ -56,9 +56,12 @@ const path = require('path');
 
   console.log(`保存完了しました: ${screenshotPath}`);
   
-  // ✨【追加】GitHub Actionsにファイル名を渡すための特殊な出力コマンド
-  console.log(`::set-output name=filepath::${screenshotPath}`);
-  console.log(`::set-output name=filename::${filename}`);
+  // ✨【修正】古い ::set-output を廃止し、最新の GITHUB_OUTPUT ファイルへの書き込みに変更
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `filepath=${screenshotPath}\n`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}\n`);
+    console.log('GitHub Actionsへ出力データを正常に引き渡しました。');
+  }
 
   await browser.close();
 })();
