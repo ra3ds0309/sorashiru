@@ -214,7 +214,6 @@
       return "200";
     }
 
-    // ✨ 【修正】発表時刻の更新処理と同時に、背景画像（today / tomorrow）を自動で切り替える
     function updateReportTimeAndBackground(isoString) {
       if (!isoString) return;
       try {
@@ -222,16 +221,13 @@
         const day = date.getDate();
         const hours = date.getHours();
         
-        // 左上のテキストラベルを書き換え
         const labelElement = document.getElementById('report-time');
         if (labelElement) {
           labelElement.textContent = `${day}日 ${hours}時発表`;
         }
 
-        // 背景レイヤー要素を取得
         const bgLayer = document.getElementById('map-bg');
         if (bgLayer) {
-          // 💡 17時発表の場合は tomorrow.png、それ以外(5時や11時など)は today.png
           if (hours === 17) {
             bgLayer.style.backgroundImage = "url('assets/whether/tomorrow.png')";
             console.log("そらしる：17時発表データのため背景を【tomorrow.png】に設定しました。");
@@ -245,10 +241,9 @@
       }
     }
 
-    // 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
     async function loadWeatherData() {
       const container = document.getElementById('content-container');
-      container.innerHTML = ''; // 初期化
+      container.innerHTML = ''; 
 
       console.log("そらしる：気象庁データ同期中...");
       
@@ -261,7 +256,6 @@
           
           const forecastBlock = json[0];
           
-          // 最初にとれた有効なデータのreportDatetimeを利用して時間表示と背景を更新
           if (!hasSetReportTime && forecastBlock.reportDatetime) {
             updateReportTimeAndBackground(forecastBlock.reportDatetime);
             hasSetReportTime = true;
@@ -269,14 +263,12 @@
 
           const timeSeries = forecastBlock.timeSeries;
           
-          // エリア特定
           let areaData = timeSeries[0].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
           if (!areaData) areaData = timeSeries[0].areas[0];
           
           const weatherCode = areaData.weatherCodes[0]; 
           const finalCode = convertWeatherCode(weatherCode);
 
-          // 気温の取得処理
           let tempMin = "--";
           let tempMax = "--";
           if (timeSeries[2]) {
@@ -288,7 +280,6 @@
             }
           }
 
-          // HTML要素（ピン）を組み立て
           const pin = document.createElement('div');
           pin.className = 'city-pin';
           pin.style.left = `${city.x}px`;
@@ -310,6 +301,9 @@
 
       await Promise.all(promises);
       console.log("そらしる：すべての天気データをマップに反映しました。");
+      
+      // ✨【追加】すべてのAPIフェッチ・描写処理が完了したサインを出す
+      window.weatherDataLoaded = true;
     }
 
     window.addEventListener('DOMContentLoaded', loadWeatherData);
