@@ -4,146 +4,215 @@
   <meta charset="UTF-8">
   <title>そらしる天気</title>
   <style>
-    /* スクショ用にサイズを固定（例：横1024px × 縦576pxの16:9） */
+    /* スクショ用にサイズを1024x576(16:9)に固定 */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body {
       width: 1024px;
       height: 576px;
       font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-      /* ↓ここに用意されている背景画像をセットします（仮でダークグレーにしています） */
-      background: #22252a url('images/bg.jpg') no-repeat center/cover;
+      /* 指定のフォルダ構成に合わせた背景画像 */
+      background: #22252a url('assets/whether/cover.jpg') no-repeat center/cover;
       color: #ffffff;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 40px;
+      padding: 45px 50px;
       overflow: hidden;
+      position: relative;
     }
 
-    /* ヘッダー部分（きょうの天気 最低/最高） */
+    /* 日本地図などのレイヤー画像がある場合、背面に配置 */
+    .map-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('assets/whether/today.png') no-repeat center/cover;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* コンテンツ全体は地図の上に重ねる */
+    .container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+    }
+
+    /* ヘッダーデザイン（きょうの天気 最低/最高） */
     header {
       display: flex;
       align-items: baseline;
       gap: 20px;
     }
     .title-main {
-      font-size: 42px;
-      font-weight: bold;
-      letter-spacing: 2px;
+      font-size: 46px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-shadow: 0 4px 10px rgba(0,0,0,0.5);
     }
     .title-sub {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: bold;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
-    .title-sub .blue { color: #5dade2; }
+    .title-sub .blue { color: #3498db; }
     .title-sub .orange { color: #e67e22; }
     .report-time {
       font-size: 18px;
-      color: #aaaaaa;
-      margin-left: auto; /* 右寄せ */
+      color: #cccccc;
+      margin-left: auto;
+      text-shadow: 0 2px 5px rgba(0,0,0,0.5);
     }
 
-    /* メインコンテンツ（地図やカードの配置エリア） */
-    .content-area {
+    /* 予報を表示するコンポーネント（参考画像を再現） */
+    .weather-display-area {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       flex-grow: 1;
-      margin-top: 20px;
     }
 
-    /* 天気予報ピン（参考画像の配置を再現するためのカード） */
+    /* お天気ピンカード */
     .weather-pin {
       background: #ffffff;
       color: #333333;
-      border-radius: 8px;
-      width: 160px;
-      padding: 8px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      border-radius: 12px;
+      width: 180px;
+      padding: 10px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.5);
       text-align: center;
+      transition: all 0.3s ease;
     }
     .pin-header {
       background: #22252a;
       color: #ffffff;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: bold;
-      padding: 4px 0;
-      border-radius: 4px;
-      margin-bottom: 8px;
+      padding: 6px 0;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
     }
     .pin-icon {
-      width: 90px;
-      height: 90px;
-      margin: 5px auto;
+      width: 100px;
+      height: 100px;
+      margin: 8px auto;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .pin-icon img {
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: contain;
     }
     .pin-temp {
-      font-size: 20px;
+      font-size: 22px;
       font-weight: bold;
-      border-top: 1px dashed #cccccc;
-      padding-top: 6px;
-      margin-top: 6px;
+      border-top: 2px dashed #eeeeee;
+      padding-top: 8px;
+      margin-top: 8px;
       display: flex;
       justify-content: center;
-      gap: 8px;
+      gap: 12px;
     }
-    .temp-low { color: #3498db; }
-    .temp-high { color: #e67e22; }
+    .temp-low { color: #2980b9; }
+    .temp-high { color: #d35400; }
 
-    /* フッター部分（著作権やBot名） */
+    /* フッター */
     footer {
       text-align: right;
       font-size: 14px;
-      color: #777777;
+      color: #888888;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
   </style>
 </head>
 <body>
 
-  <header>
-    <div class="title-main">きょうの天気</div>
-    <div class="title-sub"><span class="blue">最低</span> / <span class="orange">最高</span></div>
-    <div class="report-time" id="report-time">21日 05時発表</div>
-  </header>
+  <div class="map-layer"></div>
 
-  <div class="content-area">
-    
-    <div class="weather-pin" style="margin-left: 200px; margin-top: 5px;">
-      <div class="pin-header" id="area-name">名古屋</div>
-      <div class="pin-icon">
-        <img id="weather-img" src="images/icons/300.png" alt="天気">
-      </div>
-      <div class="pin-temp">
-        <span class="temp-low" id="temp-min">--</span>
-        <span class="temp-high" id="temp-high">23</span>
+  <div class="container">
+    <header>
+      <div class="title-main">きょうの天気</div>
+      <div class="title-sub"><span class="blue">最低</span> / <span class="orange">最高</span></div>
+      <div class="report-time" id="report-time">--日 --時発表</div>
+    </header>
+
+    <div class="weather-display-area">
+      <div class="weather-pin" id="weather-card">
+        <div class="pin-header" id="area-name">エリア</div>
+        <div class="pin-icon">
+          <img id="weather-img" src="" alt="天気アイコン">
+        </div>
+        <div class="pin-temp">
+          <span class="temp-low" id="temp-min">--</span>
+          <span class="temp-high" id="temp-high">--</span>
+        </div>
       </div>
     </div>
 
+    <footer>
+      © そらしる
+    </footer>
   </div>
 
-  <footer>
-    ©そらしる
-  </footer>
-
   <script>
-    // この関数を、Actions（Puppeteer）側から実行してデータを流し込みます
-    function updateWeather(data) {
-      document.getElementById('report-time').innerText = data.reportTime;
-      document.getElementById('area-name').innerText = data.areaName;
-      document.getElementById('weather-img').src = 'images/icons/' + data.weatherCode + '.png';
-      document.getElementById('temp-min').innerText = data.tempMin || '--';
-      document.getElementById('temp-high').innerText = data.tempMax;
+    /**
+     * スプレッドシート（CSV）のルールを再現したコード変換マップ
+     * 細かいコード（101, 102など）のSVGが用意されていない場合、
+     * 自動的にベースとなる画像（100, 200, 300, 400）へ安全に変換します。
+     */
+    function convertWeatherCode(code) {
+      const codeStr = String(code);
+      
+      // すでに直接SVGが存在する主要コードならそのまま返す
+      const activeCodes = ["100", "200", "300", "400"]; 
+      if (activeCodes.includes(codeStr)) {
+        return codeStr;
+      }
+
+      // 存在しない細かいコードの場合のフォールバック処理（スプレッドシートの変換ロジック）
+      if (codeStr.startsWith("1")) return "100"; // 100番台（晴れ系）は全て100.svgへ
+      if (codeStr.startsWith("2")) return "200"; // 200番台（曇り系）は全て200.svgへ
+      if (codeStr.startsWith("3")) return "300"; // 300番台（雨系）は全て300.svgへ
+      if (codeStr.startsWith("4")) return "400"; // 400番台（雪系）は全て400.svgへ
+
+      return "200"; // 万が一想定外のコードが来たら「曇り(200)」を安全弁にする
     }
 
-    // テスト用に初期データをモックで流す場合（開発確認用）
-    // updateWeather({ reportTime: "21日 12時発表", areaName: "名古屋", weatherCode: "300", tempMin: "21", tempMax: "25" });
+    /**
+     * GitHub Actions（Puppeteer）側から呼び出されてデータを書き換えるメイン関数
+     * @param {Object} data - GASから送られてくる天気情報オブジェクト
+     */
+    function updateWeather(data) {
+      // 1. 発表時刻とエリア名の更新
+      document.getElementById('report-time').innerText = data.reportTime;
+      document.getElementById('area-name').innerText = data.areaName;
+      
+      // 2. 気温の更新（データがない場合は "--" を表示）
+      document.getElementById('temp-min').innerText = data.tempMin ? data.tempMin : '--';
+      document.getElementById('temp-high').innerText = data.tempMax ? data.tempMax : '--';
+      
+      // 3. 天気コードの自動変換と、指定フォルダへのSVGパス設定
+      const finalCode = convertWeatherCode(data.weatherCode);
+      document.getElementById('weather-img').src = `assets/whether/icons/${finalCode}.svg`;
+    }
+
+    // デバッグ・開発中の画面確認用（本番時はActions側から実行するので不要です）
+    // updateWeather({
+    //   reportTime: "21日 05時発表",
+    //   areaName: "名古屋",
+    //   weatherCode: "101", // 101の画像がなくても自動で 100.svg を読み込みます
+    //   tempMin: "18",
+    //   tempMax: "25"
+    // });
   </script>
 </body>
 </html>
