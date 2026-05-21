@@ -2,12 +2,12 @@ name: Take Weather Screenshot and Notify Discord
 
 on:
   schedule:
-    # 📝 毎日2回定期実行（UTC表記）
+    # 毎日2回定期実行（UTC表記）
     # 1. 日本時間 朝06:00 ➡ UTC 前日21:00
     # 2. 日本時間 夕18:00 ➡ UTC 当日09:00
     - cron: '0 21 * * *'
     - cron: '0 9 * * *'
-  workflow_dispatch: # 手動実行用ボタン
+  workflow_dispatch: 
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -31,12 +31,68 @@ jobs:
     - name: Install Dependencies
       run: |
         npm init -y
-        npm install puppeteer
+        # ✨ puppeteerに加えて、Google公式の最新Gemini SDKをインストール
+        npm install puppeteer @google/genai
 
     - name: Take Screenshot
       id: capture_step
       run: |
         node capture.js
+
+    # ✨【追加】Gemini APIを呼び出して、現在のデータから概要文を生成するステップ
+    - name: Generate Weather Summary via Gemini
+      id: gemini_step
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        FILENAME="${{ steps.capture_step.outputs.filename }}"
+        RAW_DATA="${{ steps.capture_step.outputs.raw_data }}"
+        
+        # 実行時間から「きょう」か「あす」かを判定
+        EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
+        EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
+        REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
+        
+        TARGET_DAY="きょう"
+        if [ "$REPORT_HOUR" -eq 17 ]; then
+          TARGET_DAY="あす"
+        fi
+
+        # インラインで簡易的なNode.jsスクリプトを走らせてGemini APIを叩く
+        node -e "
+        const { GoogleGenAI } = require('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        
+        async function run() {
+          const prompt = \`以下の日本の各都市の気温データをもとに、テレビの天気ニュースの気象予報士が読み上げるような、自然でわかりやすい【\${process.env.TARGET_DAY}の全国天気概況】の文章を150文字以内で作成してください。
+          
+          特徴として、大まかに地方ブロック（沖縄、九州・四国・中国、近畿・中部・関東、北陸・東北、北海道など）をいくつかまとめて天気の傾向（晴れ、曇り、雨など）を伝えるようにしてください。
+          
+          【データ一覧】
+          \${process.env.RAW_DATA}
+          
+          【出力フォーマット】
+          余計な解説や前置き（'承知しました'など）は一切含めず、天気概要の文章本体のみを出力してください。\`;
+
+          try {
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+            });
+            const text = response.text.trim();
+            // GitHub Actionsの環境ファイルに書き込み
+            const fs = require('fs');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=' + text.replace(/\n/g, ' ') + '\\n');
+          } catch (e) {
+            console.error('Gemini API Error:', e);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'summary=全国的におおむね安定した天気となるでしょう。\\n');
+          }
+        }
+        run();
+        "
+      env:
+        TARGET_DAY: ${{ env.TARGET_DAY }}
+        RAW_DATA: ${{ steps.capture_step.outputs.raw_data }}
 
     - name: Send Screenshot to Discord
       env:
@@ -44,36 +100,30 @@ jobs:
       run: |
         FILEPATH="${{ steps.capture_step.outputs.filepath }}"
         FILENAME="${{ steps.capture_step.outputs.filename }}"
+        SUMMARY="${{ steps.gemini_step.outputs.summary }}"
         
-        # ファイル名（例: weather_20260522_0530.png）から「日」と「時」を自動抽出
         DAY=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{6}([0-9]{2})_[0-9]{4}\.png/\1/')
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
         
-        # 頭の0を排除して1時間引く（6時実行なら5時、18時実行なら17時発表）
         EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
         REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
         
-        # 💡 タイトルの動的切り替えロジック
-        # 発表時間が「17時」なら【あすの天気予報】、それ以外（5時など）なら【きょうの天気予報】
         if [ "$REPORT_HOUR" -eq 17 ]; then
           TITLE="【あすの天気予報】"
         else
           TITLE="【きょうの天気予報】"
         fi
         
-        # 表示用に時間を2桁に整形 (例: 5 ➡ 05)
         if [ "$REPORT_HOUR" -lt 10 ]; then
           REPORT_HOUR="0$REPORT_HOUR"
         fi
 
-        # 📋 指定のテキストフォーマットに組み立て
-        MESSAGE="${TITLE}"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"
+        # 📋 メッセージの組み立てに、Geminiが作った文章（$SUMMARY）を追加！
+        MESSAGE="${TITLE}"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"$'\n\n'"$SUMMARY"
         
         echo "Discordへ送信するメッセージ:"
         echo "$MESSAGE"
-        echo "Discordへ画像を送信中: $FILENAME"
         
-        # Webhookへテキストと画像を送信
         curl -X POST -F "content=$MESSAGE" -F "file=@$FILEPATH" $DISCORD_WEBHOOK
 
     - name: Commit and Push Screenshot
