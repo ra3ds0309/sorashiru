@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght=700&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,10 +60,10 @@
       z-index: 3;
     }
 
-    /* ✨ エディタの設定を反映させた都市ピンのスタイル（地名枠は削除） ✨ */
+    /* 都市ピンのスタイル */
     .city-pin {
       position: absolute;
-      width: 120px; /* エディタでの設定値 */
+      width: 120px;
       text-align: center;
       display: flex;
       flex-direction: column;
@@ -71,32 +71,39 @@
       transform: translate(-50%, -50%);
     }
 
-    /* ✨ 天気アイコンのスタイル（エディタのサイズと影設定を反映） ✨ */
+    /* 天気アイコンのスタイル */
     .city-icon {
-      width: 104px; /* エディタでの設定値 */
-      height: 104px; /* エディタでの設定値 */
-      filter: drop-shadow(0px 4px 0px rgba(0,0,0,0)); /* エディタでの設定値（影なし） */
+      width: 104px;
+      height: 104px;
+      filter: drop-shadow(0px 4px 0px rgba(0,0,0,0));
     }
 
-    /* ✨ 気温テキストのスタイル（Roboto・影なし・サイズ・ズレ防止対策） ✨ */
+    /* 気温コンテナのスタイル */
     .city-temp {
       font-family: 'Roboto', sans-serif;
-      font-size: 30px; /* エディタでの設定値 */
+      font-size: 30px;
       font-weight: bold;
-      margin-top: -15px; /* エディタでの設定値（アイコンとのスキマ） */
-      text-shadow: none !important; /* 影を完全に削除 */
+      margin-top: -15px; /* アイコンとの位置調整 */
+      text-shadow: none !important;
       white-space: nowrap;
       
-      /* 💡 一桁になっても絶対に中央がズレないための表示設定 */
+      /* 左右中央に並べる設定 */
       display: flex;
       justify-content: center;
       align-items: center;
     }
     
+    /* 💡 【解決策】それぞれの数字に固定幅を持たせて、文字数変化によるズレを防ぐ */
+    .t-min, .t-max {
+      display: inline-block;
+      width: 45px; /* 数字が入る領域の幅を固定 */
+      text-align: center; /* 領域内で中央揃え */
+    }
+    
     /* 最低気温（青） */
     .t-min {
       color: #5dade2;
-      margin-right: 15px; /* エディタでの設定値（最高気温とのスキマ） */
+      margin-right: 10px; /* 最低気温の領域と、最高気温の領域の間のスキマ（エディタの15px相当に調整） */
     }
     
     /* 最高気温（赤） */
@@ -116,7 +123,7 @@
   </div>
 
   <script>
-    // 🌐 エディタから出力された最新の座標データ配列（全27都市）
+    // 全27都市の座標データ配列
     const targetCities = [
       { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1456, "y": 159 },
       { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1281, "y": 200 },
@@ -147,11 +154,16 @@
       { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 166, "y": 319 }
     ];
 
-    // 天気コードフォールバック
+    // ✨ 【修正】3桁の天気コード（203など）もそのまま通すようにロジックを変更
     function convertWeatherCode(code) {
       const codeStr = String(code);
-      const activeCodes = ["100", "200", "300", "400"]; 
-      if (activeCodes.includes(codeStr)) return codeStr;
+      
+      // 101, 203 などの詳細コードでも、3桁の数字であればそのままSVG名として返す
+      if (codeStr.length === 3) {
+        return codeStr;
+      }
+      
+      // それ以外の場合のセーフティ（頭文字で丸める処理）
       if (codeStr.startsWith("1")) return "100";
       if (codeStr.startsWith("2")) return "200";
       if (codeStr.startsWith("3")) return "300";
@@ -159,7 +171,7 @@
       return "200";
     }
 
-    // 🌐 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
+    // 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
     async function loadWeatherData() {
       const container = document.getElementById('content-container');
       container.innerHTML = ''; // 初期化
@@ -193,13 +205,12 @@
             }
           }
 
-          // 📍 HTML要素（ピン）を組み立て
+          // HTML要素（ピン）を組み立て
           const pin = document.createElement('div');
           pin.className = 'city-pin';
           pin.style.left = `${city.x}px`;
           pin.style.top = `${city.y}px`;
 
-          // ✨ 【修正】city-name（都市名）と、気温の後ろについていた「°C」の文字を完全に消去しました ✨
           pin.innerHTML = `
             <img class="city-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
             <div class="city-temp">
@@ -207,7 +218,6 @@
             </div>
           `;
 
-          // マップレイヤーにピンを配置
           container.appendChild(pin);
 
         } catch (error) {
