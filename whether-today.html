@@ -2,18 +2,30 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる - きょうの天気ベース</title>
+  <title>そらしる - きょうの天気 (1920x1080)</title>
   <style>
-    /* スクショ用にサイズを1024x576(16:9)に固定し、余白を完全に排除 */
+    /* 余白を完全にゼロにし、スクローバーを非表示に */
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body {
-      width: 1024px;
-      height: 576px;
-      /* 1層目：グラデーション背景 (cover.jpg) */
-      background: url('assets/whether/cover.jpg') no-repeat center/cover;
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; }
+
+    /* 元画像にある2pxの余白を強制的にカットするためのラッパー */
+    .viewport-trimmer {
+      width: 1920px;
+      height: 1080px;
       position: relative;
       overflow: hidden;
+    }
+
+    .base-container {
+      width: 100%;
+      height: 100%;
+      /* 1層目：グラデーション背景 (cover.jpg) */
+      background: url('assets/whether/cover.jpg') no-repeat center/cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+      /* 上下左右2pxの余白を画面外に押し出して見えなくする処理 */
+      transform: scale(1.005); 
     }
 
     /* 2層目：日本地図レイヤー (today.png) */
@@ -40,32 +52,49 @@
       pointer-events: none;
     }
 
-    /* 4層目：将来的に文字やアイコンを配置するためのコンテナ */
+    /* 4層目：データ配置用オーバーレイ（1920x1080の絶対座標でパーツを置く場所） */
     .content-overlay {
-      position: relative;
-      z-index: 3;
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      /* ここに必要なパーツ（文字やSVG）を絶対配置などで乗せていきます */
+      z-index: 3;
     }
   </style>
 </head>
 <body>
 
-  <div class="map-layer"></div>
+  <div class="viewport-trimmer">
+    <div class="base-container">
+      <div class="map-layer"></div>
 
-  <div class="box-layer"></div>
+      <div class="box-layer"></div>
 
-  <div class="content-overlay" id="content-container">
+      <div class="content-overlay" id="content-container">
+        </div>
     </div>
+  </div>
 
   <script>
-    /**
-     * 将来GitHub Actionsからデータを流し込むための空の関数だけ残しています。
-     * ここにパーツを配置するコードを後から追加していきます。
-     */
-    function updateWeather(data) {
-      // データの受け取り口
+    // コード変換ロジック（前回のフォールバックを維持）
+    function convertWeatherCode(code) {
+      const codeStr = String(code);
+      const activeCodes = ["100", "200", "300", "400"]; 
+      if (activeCodes.includes(codeStr)) return codeStr;
+      if (codeStr.startsWith("1")) return "100";
+      if (codeStr.startsWith("2")) return "200";
+      if (codeStr.startsWith("3")) return "300";
+      if (codeStr.startsWith("4")) return "400";
+      return "200";
+    }
+
+    // 今後Actionsから全国のデータ配列をまとめて受け取るための関数
+    function updateAllWeathers(weatherList) {
+      const container = document.getElementById('content-container');
+      container.innerHTML = ''; // 一旦リセット
+      
+      // weatherListには、[ { name: "名古屋", code: "300", min: "21", max: "25", x: 1200, y: 600 }, ... ] のような形でデータを流し込む予定です
     }
   </script>
 </body>
