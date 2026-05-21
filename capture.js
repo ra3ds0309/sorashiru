@@ -30,7 +30,7 @@ const path = require('path');
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'ja-JP,ja;q=0.9' });
 
   console.log('そらしる天気ページを読み込み中...');
-  await page.goto('http://localhost:8080/index.html', { 
+  await page.goto('https://ra3ds0309.github.io/sorashiru/whether.html', { 
     waitUntil: 'networkidle0', // 通信が完全に止まるまで待つ
     timeout: 60000 
   });
