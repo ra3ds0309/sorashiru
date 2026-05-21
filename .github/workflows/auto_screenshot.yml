@@ -1,0 +1,38 @@
+name: Sorashiru Auto Screenshot
+
+on:
+  schedule:
+    # 毎日 日本時間 5:30（UTC 前日20:30）と 17:30（UTC 8:30）に実行
+    - cron: '30 20 * * *'
+    - cron: '30 8 * * *'
+  workflow_dispatch: # 手動で即時実行したい時用のボタンを有効化
+
+jobs:
+  take-screenshot:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. リポジトリのコードをチェックアウト
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Node.jsの環境をセットアップ
+    - name: Setup Node.js
+      uses: actions/choose-node-version@v1
+      with:
+        node-version: '18'
+
+    # 3. Puppeteer（ブラウザ自動操作ライブラリ）のインストール
+    - name: Install dependencies
+      run: |
+        npm init -y
+        npm install puppeteer
+
+    # 4. スクショ実行スクリプトの起動
+    - name: Run Screenshot Script
+      run: node screenshot.js
+
+    # 5. 生成された画像をDiscord Webhookに送信
+    - name: Send Screenshot to Discord
+      run: |
+        curl -X POST -F "file=@weather_live.png" -F "payload_json={\"content\": \"📊 **そらしる定期天気予報アップデート**\"}" ${{ secrets.DISCORD_WEBHOOK_URL }}
