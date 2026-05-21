@@ -9,6 +9,10 @@ on:
     - cron: '0 9 * * *'
   workflow_dispatch: # 手動実行用ボタン
 
+# ✨ Node.js 20の減衰警告を黙らせ、Node.js 24環境で動かすためのグローバル環境変数
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -23,7 +27,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: 20
+        node-version: 24 # ✨ Node.js 24にバージョンアップ
 
     - name: Install Dependencies
       run: |
@@ -39,25 +43,23 @@ jobs:
       env:
         DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
       run: |
+        # 最新の outputs 参照方法で取得
         FILEPATH="${{ steps.capture_step.outputs.filepath }}"
         FILENAME="${{ steps.capture_step.outputs.filename }}"
         
-        # 💡 ファイル名（例: weather_20260522_0530.png）から「日」と「時」を自動抽出
-        # ※気象庁の予報発表は5時と17時なので、実行時間（6時/18時）の1時間前の数値を割り当てます
+        # ファイル名（例: weather_20260522_0530.png）から「日」と「時」を自動抽出
         DAY=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{6}([0-9]{2})_[0-9]{4}\.png/\1/')
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
         
-        # 10進数として安全に扱うため、頭の0を消す処理をしてから1時間引く
-        EXEC_HOUR_CLEAN=$(10#$EXEC_HOUR)
+        # 頭の0を排除して1時間引く（6時実行なら5時、18時実行なら17時発表）
+        EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
         REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
         
-        # もし1桁の時間なら、表示用に0埋めかそのままにするか調整（例: 5時 または 05時）
-        # 今回は元のファイル名に合わせてそのまま出力、または1時間引いた数値にします
         if [ "$REPORT_HOUR" -lt 10 ]; then
           REPORT_HOUR="0$REPORT_HOUR"
         fi
 
-        # 📋 ご指定のテキストフォーマットに組み立て
+        # ご指定のテキストフォーマットに組み立て
         MESSAGE="【きょうの天気予報】"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"
         
         echo "Discordへ送信するメッセージ:"
