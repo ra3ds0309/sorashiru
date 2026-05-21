@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,6 +58,34 @@
       width: 100%;
       height: 100%;
       z-index: 3;
+    }
+
+    /* ✨ 左上：発表時刻のスタイル (Noto Sans JP) ✨ */
+    .report-time-tag {
+      position: absolute;
+      top: 30px;
+      left: 40px;
+      color: #ffffff;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      z-index: 4;
+    }
+
+    /* ✨ 右上：著作権表記のスタイル (Roboto) ✨ */
+    .copyright-tag {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: 'Roboto', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      z-index: 4;
     }
 
     /* 都市ピンのスタイル */
@@ -115,6 +143,9 @@
 
   <div class="viewport-trimmer">
     <div class="base-container">
+      <div class="report-time-tag" id="report-time">-日 --時発表</div>
+      <div class="copyright-tag">©Sorashiru</div>
+
       <div class="map-layer"></div>
       <div class="box-layer"></div>
       <div class="content-overlay" id="content-container"></div>
@@ -153,7 +184,7 @@
       { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 166, "y": 319 }
     ];
 
-    // ✨ 【コード変換表マッピング】JMAコードに対応するファイル名（拡張子なし）
+    // コード変換表マッピング
     const jmaIconMap = {
       "100": "100", "101": "101", "102": "102", "103": "102", "104": "104", "105": "104", "106": "102", "107": "102", "108": "102",
       "110": "110", "111": "110", "112": "112", "113": "112", "114": "112", "115": "115", "116": "115", "117": "115", "118": "112",
@@ -171,21 +202,31 @@
       "450": "450"
     };
 
-    // ✨ 【修正】変換表マッピングを元にSVGファイル名を特定するロジック
     function convertWeatherCode(code) {
       const codeStr = String(code).trim();
-      
-      // 変換表に登録されているコードであれば、指定されたファイル名を返す
-      if (jmaIconMap[codeStr]) {
-        return jmaIconMap[codeStr];
-      }
-      
-      // 表にないイレギュラーコードが来た場合のセーフティ（頭文字で丸める）
+      if (jmaIconMap[codeStr]) return jmaIconMap[codeStr];
       if (codeStr.startsWith("1")) return "100";
       if (codeStr.startsWith("2")) return "200";
       if (codeStr.startsWith("3")) return "300";
       if (codeStr.startsWith("4")) return "400";
       return "200";
+    }
+
+    // ✨ 【追加】気象庁のISO時刻文字列から「〇〇日 〇〇時発表」の文字を生成する関数
+    function updateReportTimeLabel(isoString) {
+      if (!isoString) return;
+      try {
+        const date = new Date(isoString);
+        const day = date.getDate();
+        const hours = date.getHours();
+        
+        const labelElement = document.getElementById('report-time');
+        if (labelElement) {
+          labelElement.textContent = `${day}日 ${hours}時発表`;
+        }
+      } catch (e) {
+        console.error("発表時刻のパースに失敗しました:", e);
+      }
     }
 
     // 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
@@ -194,6 +235,9 @@
       container.innerHTML = ''; // 初期化
 
       console.log("そらしる：気象庁データ同期中...");
+      
+      // 発表時刻の初期反映フラグ（最初の1件成功時に全体に適用する）
+      let hasSetReportTime = false;
 
       const promises = targetCities.map(async (city) => {
         try {
@@ -201,6 +245,13 @@
           const json = await response.json();
           
           const forecastBlock = json[0];
+          
+          // ✨ 最初にとれた有効なデータのreportDatetimeを利用して左上のラベルを更新 ✨
+          if (!hasSetReportTime && forecastBlock.reportDatetime) {
+            updateReportTimeLabel(forecastBlock.reportDatetime);
+            hasSetReportTime = true;
+          }
+
           const timeSeries = forecastBlock.timeSeries;
           
           // エリア特定
