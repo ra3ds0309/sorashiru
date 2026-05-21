@@ -2,6 +2,9 @@ name: Take Weather Screenshot and Notify Discord
 
 on:
   schedule:
+    # 毎日2回定期実行（UTC表記）
+    # 1. 日本時間 朝06:00 ➡ UTC 前日21:00
+    # 2. 日本時間 夕18:00 ➡ UTC 当日09:00
     - cron: '0 21 * * *'
     - cron: '0 9 * * *'
   workflow_dispatch: 
@@ -109,7 +112,8 @@ jobs:
           REPORT_HOUR="0$REPORT_HOUR"
         fi
 
-        MESSAGE="${TITLE}"$'\n'"${DAY}日${REPORT_HOUR}時 気象庁発表"$'\n\n'"$SUMMARY"
+        # ✨ タイトルの太字化＆1行にまとめるレイアウト変更をここに統合しました
+        MESSAGE="**${TITLE}** ${DAY}日${REPORT_HOUR}時 気象庁発表"$'\n'"$SUMMARY"
         
         echo "Discordへ送信するメッセージ:"
         echo "$MESSAGE"
