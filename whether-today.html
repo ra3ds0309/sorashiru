@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる - きょうの天気 (完全URL読込版)</title>
+  <title>そらしる - きょうの天気 (気象庁ダイレクト読込版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; }
@@ -104,7 +104,38 @@
   </div>
 
   <script>
-    // 天気コードフォールバック
+    // 1. 全27都市の気象庁データURLと座標マッピング
+    const targetCities = [
+      { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1480, "y": 120 },
+      { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1420, "y": 200 },
+      { "name": "青森", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/020000.json", "x": 1340, "y": 300 },
+      { "name": "盛岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/030000.json", "x": 1350, "y": 350 },
+      { "name": "仙台", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/040000.json", "x": 1280, "y": 420 },
+      { "name": "山形", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/060000.json", "x": 1240, "y": 420 },
+      { "name": "水戸", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/080000.json", "x": 1240, "y": 550 },
+      { "name": "宇都宮", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/090000.json", "x": 1200, "y": 540 },
+      { "name": "東京", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1180, "y": 620 },
+      { "name": "伊豆諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1180, "y": 740 },
+      { "name": "小笠原諸島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json", "x": 1280, "y": 920 },
+      { "name": "静岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/220000.json", "x": 1100, "y": 660 },
+      { "name": "長野", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/200000.json", "x": 1120, "y": 570 },
+      { "name": "金沢", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/170000.json", "x": 1030, "y": 540 },
+      { "name": "名古屋", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/230000.json", "x": 1020, "y": 650 },
+      { "name": "大阪", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/270000.json", "x": 920, "y": 680 },
+      { "name": "高松", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/370000.json", "x": 820, "y": 740 },
+      { "name": "高知", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/390000.json", "x": 800, "y": 790 },
+      { "name": "松江", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/320000.json", "x": 780, "y": 660 },
+      { "name": "山口", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/350000.json", "x": 680, "y": 710 },
+      { "name": "福岡", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/400000.json", "x": 620, "y": 720 },
+      { "name": "熊本", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/430000.json", "x": 580, "y": 790 },
+      { "name": "鹿児島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 560, "y": 850 },
+      { "name": "奄美", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/460100.json", "x": 450, "y": 950 },
+      { "name": "那覇", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/471000.json", "x": 300, "y": 900 },
+      { "name": "大東島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/472000.json", "x": 400, "y": 920 },
+      { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 200, "y": 980 }
+    ];
+
+    // 天気コードフォールバック（既存のロジック）
     function convertWeatherCode(code) {
       const codeStr = String(code);
       const activeCodes = ["100", "200", "300", "400"]; 
@@ -116,45 +147,70 @@
       return "200";
     }
 
-    // 🔴 ここをあなたのGitHubのユーザー名とリポジトリ名に書き換えてください！
-    const GITHUB_USERNAME = "ra3ds0309";
-    const REPO_NAME = "sorashiru";
-    
-    // 完全URLを組み立て
-    const DATA_URL = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/assets/whether/weather_data.json`;
-
+    // 🌐 気象庁からデータをリアルタイム取得してピンを動的生成するメイン処理
     async function loadWeatherData() {
-      try {
-        // 完全URLからキャッシュを回避するためにタイムスタンプを付与してfetch
-        const response = await fetch(`${DATA_URL}?t=${Date.now()}`);
-        const weatherList = await response.json();
-        
-        const container = document.getElementById('content-container');
-        container.innerHTML = '';
+      const container = document.getElementById('content-container');
+      container.innerHTML = ''; // 初期化
 
-        weatherList.forEach(city => {
-          const finalCode = convertWeatherCode(city.weatherCode);
+      console.log("そらしる：気象庁データ同期中...");
+
+      // 各都市のデータを順番に並列で取得
+      const promises = targetCities.map(async (city) => {
+        try {
+          // キャッシュ回避のためにタイムスタンプを付与
+          const response = await fetch(`${city.url}?t=${Date.now()}`);
+          const json = await response.json();
           
+          const forecastBlock = json[0];
+          const timeSeries = forecastBlock.timeSeries;
+          
+          // エリア特定
+          let areaData = timeSeries[0].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
+          if (!areaData) areaData = timeSeries[0].areas[0];
+          
+          const weatherCode = areaData.weatherCodes[0]; 
+          const finalCode = convertWeatherCode(weatherCode);
+
+          // 気温の取得処理
+          let tempMin = "--";
+          let tempMax = "--";
+          if (timeSeries[2]) {
+            let tempAreaData = timeSeries[2].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
+            if (!tempAreaData) tempAreaData = timeSeries[2].areas[0];
+            if (tempAreaData && tempAreaData.temps) {
+              tempMin = tempAreaData.temps[0] || "--";
+              tempMax = tempAreaData.temps[1] || "--";
+            }
+          }
+
+          // 📍 HTML要素（ピン）を組み立て
           const pin = document.createElement('div');
           pin.className = 'city-pin';
           pin.style.left = `${city.x}px`;
           pin.style.top = `${city.y}px`;
 
           pin.innerHTML = `
-            <div class="city-name">${city.cityName}</div>
+            <div class="city-name">${city.name}</div>
             <img class="city-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
             <div class="city-temp">
-              <span class="t-min">${city.tempMin || '--'}</span><span class="t-max">${city.tempMax || '--'}</span>
+              <span class="t-min">${tempMin}°C</span><span class="t-max">${tempMax}°C</span>
             </div>
           `;
 
+          // マップレイヤーにピンを配置
           container.appendChild(pin);
-        });
-      } catch (error) {
-        console.error('データの読み込みに失敗しました:', error);
-      }
+
+        } catch (error) {
+          console.error(`${city.name}の天気データの取得に失敗しました:`, error);
+        }
+      });
+
+      // すべての都市のフェッチ処理の完了を待機
+      await Promise.all(promises);
+      console.log("そらしる：すべての天気データをマップに反映しました。");
     }
 
+    // 画面ロード時に実行
     window.addEventListener('DOMContentLoaded', loadWeatherData);
   </script>
 </body>
