@@ -30,13 +30,16 @@
       transform: scale(1.005); 
     }
 
+    /* 背景マップ（JSから動的に背景画像を書き換えるため、初期のbackgroundは指定しない） */
     .map-layer {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: url('assets/whether/today.png') no-repeat center/cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: cover;
       z-index: 1;
     }
 
@@ -60,7 +63,7 @@
       z-index: 3;
     }
 
-    /* ✨ 左上：発表時刻のスタイル (Noto Sans JP / 500 / 28px) ✨ */
+    /* 左上：発表時刻のスタイル (Noto Sans JP / 500 / 28px) */
     .report-time-tag {
       position: absolute;
       top: 125px;
@@ -74,14 +77,14 @@
       z-index: 4;
     }
 
-    /* ✨ 右上：著作権表記のスタイル (Roboto / 400) ✨ */
+    /* 右上：著作権表記のスタイル (Roboto / 400) */
     .copyright-tag {
       position: absolute;
       top: 30px;
       right: 40px;
-      color: rgba(255, 255, 255, 0.3);
+      color: rgba(255, 255, 255, 0.7);
       font-family: 'Roboto', sans-serif;
-      font-size: 20px;
+      font-size: 22px;
       font-weight: 400;
       letter-spacing: 0.03em;
       text-shadow: 0 2px 4px rgba(0,0,0,0.5);
@@ -144,9 +147,9 @@
   <div class="viewport-trimmer">
     <div class="base-container">
       <div class="report-time-tag" id="report-time">-日 --時発表</div>
-      <div class="copyright-tag">© Sorashiru</div>
+      <div class="copyright-tag">©Sorashiru</div>
 
-      <div class="map-layer"></div>
+      <div class="map-layer" id="map-bg"></div>
       <div class="box-layer"></div>
       <div class="content-overlay" id="content-container"></div>
     </div>
@@ -212,19 +215,34 @@
       return "200";
     }
 
-    function updateReportTimeLabel(isoString) {
+    // ✨ 【修正】発表時刻の更新処理と同時に、背景画像（today / tomorrow）を自動で切り替える
+    function updateReportTimeAndBackground(isoString) {
       if (!isoString) return;
       try {
         const date = new Date(isoString);
         const day = date.getDate();
         const hours = date.getHours();
         
+        // 左上のテキストラベルを書き換え
         const labelElement = document.getElementById('report-time');
         if (labelElement) {
           labelElement.textContent = `${day}日 ${hours}時発表`;
         }
+
+        // 背景レイヤー要素を取得
+        const bgLayer = document.getElementById('map-bg');
+        if (bgLayer) {
+          // 💡 17時発表の場合は tomorrow.png、それ以外(5時や11時など)は today.png
+          if (hours === 17) {
+            bgLayer.style.backgroundImage = "url('assets/whether/tomorrow.png')";
+            console.log("そらしる：17時発表データのため背景を【tomorrow.png】に設定しました。");
+          } else {
+            bgLayer.style.backgroundImage = "url('assets/whether/today.png')";
+            console.log(`そらしる：${hours}時発表データのため背景を【today.png】に設定しました。`);
+          }
+        }
       } catch (e) {
-        console.error("発表時刻のパースに失敗しました:", e);
+        console.error("発表時刻の解析、または背景切り替えに失敗しました:", e);
       }
     }
 
@@ -244,8 +262,9 @@
           
           const forecastBlock = json[0];
           
+          // 最初にとれた有効なデータのreportDatetimeを利用して時間表示と背景を更新
           if (!hasSetReportTime && forecastBlock.reportDatetime) {
-            updateReportTimeLabel(forecastBlock.reportDatetime);
+            updateReportTimeAndBackground(forecastBlock.reportDatetime);
             hasSetReportTime = true;
           }
 
