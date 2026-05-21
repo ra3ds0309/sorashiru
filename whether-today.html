@@ -2,13 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる - きょうの天気 (1920x1080)</title>
+  <title>そらしる - きょうの天気 (完全URL読込版)</title>
   <style>
-    /* 余白を完全にゼロにし、スクローバーを非表示に */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; }
 
-    /* 元画像にある2pxの余白を強制的にカットするためのラッパー */
+    /* 2pxの余白を強制カット */
     .viewport-trimmer {
       width: 1920px;
       height: 1080px;
@@ -19,16 +18,13 @@
     .base-container {
       width: 100%;
       height: 100%;
-      /* 1層目：グラデーション背景 (cover.jpg) */
       background: url('assets/whether/cover.jpg') no-repeat center/cover;
       position: absolute;
       top: 0;
       left: 0;
-      /* 上下左右2pxの余白を画面外に押し出して見えなくする処理 */
       transform: scale(1.005); 
     }
 
-    /* 2層目：日本地図レイヤー (today.png) */
     .map-layer {
       position: absolute;
       top: 0;
@@ -37,10 +33,8 @@
       height: 100%;
       background: url('assets/whether/today.png') no-repeat center/cover;
       z-index: 1;
-      pointer-events: none;
     }
 
-    /* 3層目：情報表示用の黒半透明ボード (box.png) */
     .box-layer {
       position: absolute;
       top: 0;
@@ -49,10 +43,9 @@
       height: 100%;
       background: url('assets/whether/box.png') no-repeat center/cover;
       z-index: 2;
-      pointer-events: none;
     }
 
-    /* 4層目：データ配置用オーバーレイ（1920x1080の絶対座標でパーツを置く場所） */
+    /* データ配置用レイヤー */
     .content-overlay {
       position: absolute;
       top: 0;
@@ -61,6 +54,43 @@
       height: 100%;
       z-index: 3;
     }
+
+    /* 都市ピンのスタイル */
+    .city-pin {
+      position: absolute;
+      width: 120px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transform: translate(-50%, -50%);
+    }
+
+    .city-name {
+      background: rgba(0, 0, 0, 0.7);
+      color: #ffffff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .city-icon {
+      width: 65px;
+      height: 65px;
+      filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.5));
+    }
+
+    .city-temp {
+      font-size: 16px;
+      font-weight: bold;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      margin-top: 2px;
+    }
+    .t-min { color: #5dade2; margin-right: 6px; }
+    .t-max { color: #e67e22; }
   </style>
 </head>
 <body>
@@ -68,16 +98,13 @@
   <div class="viewport-trimmer">
     <div class="base-container">
       <div class="map-layer"></div>
-
       <div class="box-layer"></div>
-
-      <div class="content-overlay" id="content-container">
-        </div>
+      <div class="content-overlay" id="content-container"></div>
     </div>
   </div>
 
   <script>
-    // コード変換ロジック（前回のフォールバックを維持）
+    // 天気コードフォールバック
     function convertWeatherCode(code) {
       const codeStr = String(code);
       const activeCodes = ["100", "200", "300", "400"]; 
@@ -89,13 +116,46 @@
       return "200";
     }
 
-    // 今後Actionsから全国のデータ配列をまとめて受け取るための関数
-    function updateAllWeathers(weatherList) {
-      const container = document.getElementById('content-container');
-      container.innerHTML = ''; // 一旦リセット
-      
-      // weatherListには、[ { name: "名古屋", code: "300", min: "21", max: "25", x: 1200, y: 600 }, ... ] のような形でデータを流し込む予定です
+    // 🔴 ここをあなたのGitHubのユーザー名とリポジトリ名に書き換えてください！
+    const GITHUB_USERNAME = "ra3ds0309";
+    const REPO_NAME = "sorashiru";
+    
+    // 完全URLを組み立て
+    const DATA_URL = `https://${GITHUB_USERNAME}.github.io/${REPO_NAME}/assets/whether/weather_data.json`;
+
+    async function loadWeatherData() {
+      try {
+        // 完全URLからキャッシュを回避するためにタイムスタンプを付与してfetch
+        const response = await fetch(`${DATA_URL}?t=${Date.now()}`);
+        const weatherList = await response.json();
+        
+        const container = document.getElementById('content-container');
+        container.innerHTML = '';
+
+        weatherList.forEach(city => {
+          const finalCode = convertWeatherCode(city.weatherCode);
+          
+          const pin = document.createElement('div');
+          pin.className = 'city-pin';
+          pin.style.left = `${city.x}px`;
+          pin.style.top = `${city.y}px`;
+
+          pin.innerHTML = `
+            <div class="city-name">${city.cityName}</div>
+            <img class="city-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
+            <div class="city-temp">
+              <span class="t-min">${city.tempMin || '--'}</span><span class="t-max">${city.tempMax || '--'}</span>
+            </div>
+          `;
+
+          container.appendChild(pin);
+        });
+      } catch (error) {
+        console.error('データの読み込みに失敗しました:', error);
+      }
     }
+
+    window.addEventListener('DOMContentLoaded', loadWeatherData);
   </script>
 </body>
 </html>
