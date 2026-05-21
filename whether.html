@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>そらしる - 天気予報</title>
+  <style>
+    /* スクショ用にサイズを固定（例：横1024px × 縦576pxの16:9） */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      width: 1024px;
+      height: 576px;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      /* ↓ここに用意されている背景画像をセットします（仮でダークグレーにしています） */
+      background: #22252a url('images/bg.jpg') no-repeat center/cover;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 40px;
+      overflow: hidden;
+    }
+
+    /* ヘッダー部分（きょうの天気 最低/最高） */
+    header {
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+    }
+    .title-main {
+      font-size: 42px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    .title-sub {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .title-sub .blue { color: #5dade2; }
+    .title-sub .orange { color: #e67e22; }
+    .report-time {
+      font-size: 18px;
+      color: #aaaaaa;
+      margin-left: auto; /* 右寄せ */
+    }
+
+    /* メインコンテンツ（地図やカードの配置エリア） */
+    .content-area {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-grow: 1;
+      margin-top: 20px;
+    }
+
+    /* 天気予報ピン（参考画像の配置を再現するためのカード） */
+    .weather-pin {
+      background: #ffffff;
+      color: #333333;
+      border-radius: 8px;
+      width: 160px;
+      padding: 8px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .pin-header {
+      background: #22252a;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 4px 0;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .pin-icon {
+      width: 90px;
+      height: 90px;
+      margin: 5px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pin-icon img {
+      width: 100%;
+      height: auto;
+    }
+    .pin-temp {
+      font-size: 20px;
+      font-weight: bold;
+      border-top: 1px dashed #cccccc;
+      padding-top: 6px;
+      margin-top: 6px;
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+    .temp-low { color: #3498db; }
+    .temp-high { color: #e67e22; }
+
+    /* フッター部分（著作権やBot名） */
+    footer {
+      text-align: right;
+      font-size: 14px;
+      color: #777777;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title-main">きょうの天気</div>
+    <div class="title-sub"><span class="blue">最低</span> / <span class="orange">最高</span></div>
+    <div class="report-time" id="report-time">21日 05時発表</div>
+  </header>
+
+  <div class="content-area">
+    
+    <div class="weather-pin" style="margin-left: 200px; margin-top: 5px;">
+      <div class="pin-header" id="area-name">名古屋</div>
+      <div class="pin-icon">
+        <img id="weather-img" src="images/icons/300.png" alt="天気">
+      </div>
+      <div class="pin-temp">
+        <span class="temp-low" id="temp-min">--</span>
+        <span class="temp-high" id="temp-high">23</span>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    ©そらしる
+  </footer>
+
+  <script>
+    // この関数を、Actions（Puppeteer）側から実行してデータを流し込みます
+    function updateWeather(data) {
+      document.getElementById('report-time').innerText = data.reportTime;
+      document.getElementById('area-name').innerText = data.areaName;
+      document.getElementById('weather-img').src = 'images/icons/' + data.weatherCode + '.png';
+      document.getElementById('temp-min').innerText = data.tempMin || '--';
+      document.getElementById('temp-high').innerText = data.tempMax;
+    }
+
+    // テスト用に初期データをモックで流す場合（開発確認用）
+    // updateWeather({ reportTime: "21日 12時発表", areaName: "名古屋", weatherCode: "300", tempMin: "21", tempMax: "25" });
+  </script>
+</body>
+</html>
