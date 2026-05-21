@@ -2,27 +2,21 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる天気</title>
+  <title>そらしる - きょうの天気ベース</title>
   <style>
-    /* スクショ用にサイズを1024x576(16:9)に固定 */
+    /* スクショ用にサイズを1024x576(16:9)に固定し、余白を完全に排除 */
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body {
       width: 1024px;
       height: 576px;
-      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
-      /* 指定のフォルダ構成に合わせた背景画像 */
-      background: #22252a url('assets/whether/cover.jpg') no-repeat center/cover;
-      color: #ffffff;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 45px 50px;
-      overflow: hidden;
+      /* 1層目：グラデーション背景 (cover.jpg) */
+      background: url('assets/whether/cover.jpg') no-repeat center/cover;
       position: relative;
+      overflow: hidden;
     }
 
-    /* 日本地図などのレイヤー画像がある場合、背面に配置 */
+    /* 2層目：日本地図レイヤー (today.png) */
     .map-layer {
       position: absolute;
       top: 0;
@@ -34,103 +28,25 @@
       pointer-events: none;
     }
 
-    /* コンテンツ全体は地図の上に重ねる */
-    .container {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      height: 100%;
-    }
-
-    /* ヘッダーデザイン（きょうの天気 最低/最高） */
-    header {
-      display: flex;
-      align-items: baseline;
-      gap: 20px;
-    }
-    .title-main {
-      font-size: 46px;
-      font-weight: 900;
-      letter-spacing: 3px;
-      text-shadow: 0 4px 10px rgba(0,0,0,0.5);
-    }
-    .title-sub {
-      font-size: 26px;
-      font-weight: bold;
-      text-shadow: 0 2px 5px rgba(0,0,0,0.5);
-    }
-    .title-sub .blue { color: #3498db; }
-    .title-sub .orange { color: #e67e22; }
-    .report-time {
-      font-size: 18px;
-      color: #cccccc;
-      margin-left: auto;
-      text-shadow: 0 2px 5px rgba(0,0,0,0.5);
-    }
-
-    /* 予報を表示するコンポーネント（参考画像を再現） */
-    .weather-display-area {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-grow: 1;
-    }
-
-    /* お天気ピンカード */
-    .weather-pin {
-      background: #ffffff;
-      color: #333333;
-      border-radius: 12px;
-      width: 180px;
-      padding: 10px;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.5);
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-    .pin-header {
-      background: #22252a;
-      color: #ffffff;
-      font-size: 18px;
-      font-weight: bold;
-      padding: 6px 0;
-      border-radius: 6px;
-      margin-bottom: 10px;
-      letter-spacing: 1px;
-    }
-    .pin-icon {
-      width: 100px;
-      height: 100px;
-      margin: 8px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .pin-icon img {
+    /* 3層目：情報表示用の黒半透明ボード (box.png) */
+    .box-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      background: url('assets/whether/box.png') no-repeat center/cover;
+      z-index: 2;
+      pointer-events: none;
     }
-    .pin-temp {
-      font-size: 22px;
-      font-weight: bold;
-      border-top: 2px dashed #eeeeee;
-      padding-top: 8px;
-      margin-top: 8px;
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-    }
-    .temp-low { color: #2980b9; }
-    .temp-high { color: #d35400; }
 
-    /* フッター */
-    footer {
-      text-align: right;
-      font-size: 14px;
-      color: #888888;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    /* 4層目：将来的に文字やアイコンを配置するためのコンテナ */
+    .content-overlay {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      height: 100%;
+      /* ここに必要なパーツ（文字やSVG）を絶対配置などで乗せていきます */
     }
   </style>
 </head>
@@ -138,81 +54,19 @@
 
   <div class="map-layer"></div>
 
-  <div class="container">
-    <header>
-      <div class="title-main">きょうの天気</div>
-      <div class="title-sub"><span class="blue">最低</span> / <span class="orange">最高</span></div>
-      <div class="report-time" id="report-time">--日 --時発表</div>
-    </header>
+  <div class="box-layer"></div>
 
-    <div class="weather-display-area">
-      <div class="weather-pin" id="weather-card">
-        <div class="pin-header" id="area-name">エリア</div>
-        <div class="pin-icon">
-          <img id="weather-img" src="" alt="天気アイコン">
-        </div>
-        <div class="pin-temp">
-          <span class="temp-low" id="temp-min">--</span>
-          <span class="temp-high" id="temp-high">--</span>
-        </div>
-      </div>
+  <div class="content-overlay" id="content-container">
     </div>
-
-    <footer>
-      © そらしる
-    </footer>
-  </div>
 
   <script>
     /**
-     * スプレッドシート（CSV）のルールを再現したコード変換マップ
-     * 細かいコード（101, 102など）のSVGが用意されていない場合、
-     * 自動的にベースとなる画像（100, 200, 300, 400）へ安全に変換します。
-     */
-    function convertWeatherCode(code) {
-      const codeStr = String(code);
-      
-      // すでに直接SVGが存在する主要コードならそのまま返す
-      const activeCodes = ["100", "200", "300", "400"]; 
-      if (activeCodes.includes(codeStr)) {
-        return codeStr;
-      }
-
-      // 存在しない細かいコードの場合のフォールバック処理（スプレッドシートの変換ロジック）
-      if (codeStr.startsWith("1")) return "100"; // 100番台（晴れ系）は全て100.svgへ
-      if (codeStr.startsWith("2")) return "200"; // 200番台（曇り系）は全て200.svgへ
-      if (codeStr.startsWith("3")) return "300"; // 300番台（雨系）は全て300.svgへ
-      if (codeStr.startsWith("4")) return "400"; // 400番台（雪系）は全て400.svgへ
-
-      return "200"; // 万が一想定外のコードが来たら「曇り(200)」を安全弁にする
-    }
-
-    /**
-     * GitHub Actions（Puppeteer）側から呼び出されてデータを書き換えるメイン関数
-     * @param {Object} data - GASから送られてくる天気情報オブジェクト
+     * 将来GitHub Actionsからデータを流し込むための空の関数だけ残しています。
+     * ここにパーツを配置するコードを後から追加していきます。
      */
     function updateWeather(data) {
-      // 1. 発表時刻とエリア名の更新
-      document.getElementById('report-time').innerText = data.reportTime;
-      document.getElementById('area-name').innerText = data.areaName;
-      
-      // 2. 気温の更新（データがない場合は "--" を表示）
-      document.getElementById('temp-min').innerText = data.tempMin ? data.tempMin : '--';
-      document.getElementById('temp-high').innerText = data.tempMax ? data.tempMax : '--';
-      
-      // 3. 天気コードの自動変換と、指定フォルダへのSVGパス設定
-      const finalCode = convertWeatherCode(data.weatherCode);
-      document.getElementById('weather-img').src = `assets/whether/icons/${finalCode}.svg`;
+      // データの受け取り口
     }
-
-    // デバッグ・開発中の画面確認用（本番時はActions側から実行するので不要です）
-    // updateWeather({
-    //   reportTime: "21日 05時発表",
-    //   areaName: "名古屋",
-    //   weatherCode: "101", // 101の画像がなくても自動で 100.svg を読み込みます
-    //   tempMin: "18",
-    //   tempMax: "25"
-    // });
   </script>
 </body>
 </html>
