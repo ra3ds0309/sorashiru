@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>そらしる週間天気</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; color: #ffffff; }
+
+    .viewport-trimmer {
+      width: 1920px; height: 1080px; position: relative; overflow: hidden;
+    }
+
+    /* 背景はデイリーと統一感を出すため cover.jpg を使用 */
+    .base-container {
+      width: 100%; height: 100%;
+      background: url('assets/whether/cover.jpg') no-repeat center/cover;
+      position: absolute; top: 0; left: 0;
+      transform: scale(1.005);
+    }
+
+    /* 週間予報専用のオーバーレイ（すりガラス効果） */
+    .glass-overlay {
+      position: absolute;
+      top: 200px; left: 80px; right: 80px; bottom: 100px;
+      background: rgba(30, 33, 38, 0.85);
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      padding: 60px 40px;
+    }
+
+    /* 左上：発表時刻 */
+    .report-time-tag {
+      position: absolute; top: 125px; left: 50px;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 28px; font-weight: 500;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      z-index: 4;
+    }
+
+    /* 右上：著作権 */
+    .copyright-tag {
+      position: absolute; top: 30px; right: 40px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: 'Roboto', sans-serif;
+      font-size: 22px; font-weight: 400;
+      z-index: 4;
+    }
+
+    /* 地域タイトル */
+    .area-title {
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 56px; font-weight: 700;
+      margin-bottom: 40px;
+      padding-left: 20px;
+      border-left: 10px solid #e67e22;
+      line-height: 1;
+    }
+
+    /* 週間グリッドコンテナ */
+    .weekly-grid {
+      display: flex;
+      justify-content: space-between;
+      flex-grow: 1;
+      gap: 15px;
+    }
+
+    /* 1日分のカード */
+    .day-card {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .date-info { font-family: 'Roboto', sans-serif; font-size: 28px; font-weight: 700; margin-bottom: 5px; }
+    .day-info { font-family: 'Noto Sans JP', sans-serif; font-size: 22px; font-weight: 700; margin-bottom: 25px; }
+    
+    /* 曜日の色分け */
+    .day-sat { color: #5dade2; }
+    .day-sun { color: #ec7063; }
+
+    .weather-icon {
+      width: 130px; height: 130px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));
+    }
+
+    .pop-info {
+      font-family: 'Roboto', sans-serif;
+      font-size: 24px; font-weight: 500;
+      color: #aeb6bf;
+      margin-bottom: 30px;
+    }
+    .pop-info span { font-size: 16px; margin-left: 2px; }
+
+    .temp-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 25px;
+    }
+
+    .temp-max { font-family: 'Roboto', sans-serif; font-size: 42px; font-weight: 700; color: #e67e22; }
+    .temp-min { font-family: 'Roboto', sans-serif; font-size: 34px; font-weight: 700; color: #5dade2; }
+  </style>
+</head>
+<body>
+
+  <div class="viewport-trimmer">
+    <div class="base-container">
+      <div class="report-time-tag" id="report-time">-日 --時発表</div>
+      <div class="copyright-tag">©Sorashiru</div>
+
+      <div class="glass-overlay">
+        <div class="area-title" id="area-name">週間予報</div>
+        <div class="weekly-grid" id="weekly-container">
+          </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // デイリー版と同じマッピングデータ
+    const jmaIconMap = {
+      "100": "100", "101": "101", "102": "102", "103": "102", "104": "104", "105": "104", "106": "102", "107": "102", "108": "102",
+      "110": "110", "111": "110", "112": "112", "113": "112", "114": "112", "115": "115", "116": "115", "117": "115", "118": "112",
+      "119": "119", "120": "102", "121": "102", "123": "112", "124": "100", "125": "100", "126": "119", "127": "112", "128": "112",
+      "130": "100", "131": "100", "132": "101", "140": "140", "160": "104", "170": "104", "181": "115",
+      "200": "200", "201": "201", "202": "202", "203": "202", "204": "204", "205": "205", "206": "205", "207": "205", "208": "219",
+      "209": "200", "210": "210", "211": "210", "212": "212", "213": "212", "214": "212", "215": "215", "216": "215", "217": "215",
+      "218": "215", "219": "219", "220": "202", "221": "202", "222": "202", "223": "201", "224": "212", "225": "212", "226": "212",
+      "228": "215", "229": "215", "230": "215", "231": "200", "240": "240", "250": "250", "260": "204", "270": "204", "281": "215",
+      "300": "300", "301": "301", "302": "302", "303": "303", "306": "306", "308": "306", "309": "303", "311": "311", "313": "313",
+      "314": "314", "315": "314", "316": "311", "317": "313", "320": "311", "321": "313", "322": "314", "323": "311", "324": "311",
+      "325": "311", "326": "314", "327": "314", "328": "306", "329": "300", "340": "400", "350": "350", "361": "411", "371": "413",
+      "400": "400", "401": "401", "402": "402", "403": "403", "405": "405", "406": "405", "407": "405", "409": "403", "411": "411",
+      "413": "413", "414": "414", "420": "411", "421": "413", "422": "414", "423": "414", "425": "405", "426": "400", "427": "400",
+      "450": "450"
+    };
+
+    const TARGET_AREA_CODE = "130000"; // 表示したい地域のコード (例: 130000 = 東京)
+    const API_URL = `https://www.jma.go.jp/bosai/forecast/data/forecast/${TARGET_AREA_CODE}.json`;
+
+    function convertWeatherCode(code) {
+      const codeStr = String(code).trim();
+      if (jmaIconMap[codeStr]) return jmaIconMap[codeStr];
+      return "200";
+    }
+
+    async function loadWeeklyForecast() {
+      try {
+        const response = await fetch(`${API_URL}?t=${Date.now()}`);
+        const data = await response.json();
+        
+        // 週間予報データは index [1]
+        const weeklyData = data[1];
+        const reportTime = weeklyData.reportDatetime;
+        
+        // 発表時刻の表示
+        const d = new Date(reportTime);
+        document.getElementById('report-time').textContent = `${d.getDate()}日 ${d.getHours()}時発表`;
+        
+        // 地域名の表示
+        document.getElementById('area-name').textContent = `${weeklyData.timeSeries[0].areas[0].area.name} 週間予報`;
+
+        const timeDefines = weeklyData.timeSeries[0].timeDefines; // 日付配列
+        const weatherCodes = weeklyData.timeSeries[0].areas[0].weatherCodes; // 天気コード
+        const pops = weeklyData.timeSeries[1].areas[0].pops; // 降水確率
+        const tempsMax = weeklyData.timeSeries[2].areas[0].tempsMax; // 最高気温
+        const tempsMin = weeklyData.timeSeries[2].areas[0].tempsMin; // 最低気温
+
+        const container = document.getElementById('weekly-container');
+        container.innerHTML = '';
+
+        // 7日分の表示をループ (JMAの週間APIは通常7日分)
+        for (let i = 0; i < timeDefines.length; i++) {
+          const dateObj = new Date(timeDefines[i]);
+          const month = dateObj.getMonth() + 1;
+          const date = dateObj.getDate();
+          const dayIdx = dateObj.getDay();
+          const dayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+          
+          let dayClass = "";
+          if (dayIdx === 0) dayClass = "day-sun";
+          if (dayIdx === 6) dayClass = "day-sat";
+
+          const finalCode = convertWeatherCode(weatherCodes[i]);
+          
+          // 気温データが空（今日分など）の場合は "--" を表示
+          const maxT = tempsMax[i] !== undefined ? tempsMax[i] : "--";
+          const minT = tempsMin[i] !== undefined ? tempsMin[i] : "--";
+          const pop = pops[i] !== "" ? pops[i] : "0";
+
+          const card = document.createElement('div');
+          card.className = 'day-card';
+          card.innerHTML = `
+            <div class="date-info">${month}/${date}</div>
+            <div class="day-info ${dayClass}">${dayLabels[dayIdx]}</div>
+            <img class="weather-icon" src="assets/whether/icons/${finalCode}.svg" alt="weather">
+            <div class="pop-info">${pop}<span>%</span></div>
+            <div class="temp-info">
+              <div class="temp-max">${maxT}</div>
+              <div class="temp-min">${minT}</div>
+            </div>
+          `;
+          container.appendChild(card);
+        }
+
+      } catch (error) {
+        console.error("週間予報の取得に失敗しました:", error);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', loadWeeklyForecast);
+  </script>
+</body>
+</html>
