@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&family=Roboto:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Roboto:wght@400;600&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -60,21 +60,21 @@
       z-index: 3;
     }
 
-    /* ✨ 左上：発表時刻のスタイル (Noto Sans JP) ✨ */
+    /* ✨ 左上：発表時刻のスタイル (Noto Sans JP / 500 / 28px) ✨ */
     .report-time-tag {
       position: absolute;
-      top: 30px;
-      left: 40px;
+      top: 125px;
+      left: 50px;
       color: #ffffff;
       font-family: 'Noto Sans JP', sans-serif;
-      font-size: 24px;
-      font-weight: 700;
+      font-size: 28px;
+      font-weight: 500;
       letter-spacing: 0.05em;
       text-shadow: 0 2px 4px rgba(0,0,0,0.6);
       z-index: 4;
     }
 
-    /* ✨ 右上：著作権表記のスタイル (Roboto) ✨ */
+    /* ✨ 右上：著作権表記のスタイル (Roboto / 400) ✨ */
     .copyright-tag {
       position: absolute;
       top: 30px;
@@ -82,7 +82,7 @@
       color: rgba(255, 255, 255, 0.7);
       font-family: 'Roboto', sans-serif;
       font-size: 22px;
-      font-weight: 700;
+      font-weight: 400;
       letter-spacing: 0.03em;
       text-shadow: 0 2px 4px rgba(0,0,0,0.5);
       z-index: 4;
@@ -106,11 +106,11 @@
       filter: drop-shadow(0px 4px 0px rgba(0,0,0,0));
     }
 
-    /* 気温コンテナのスタイル */
+    /* 気温コンテナのスタイル (Roboto / 600) */
     .city-temp {
       font-family: 'Roboto', sans-serif;
       font-size: 30px;
-      font-weight: bold;
+      font-weight: 600;
       margin-top: -15px;
       text-shadow: none !important;
       white-space: nowrap;
@@ -212,7 +212,6 @@
       return "200";
     }
 
-    // ✨ 【追加】気象庁のISO時刻文字列から「〇〇日 〇〇時発表」の文字を生成する関数
     function updateReportTimeLabel(isoString) {
       if (!isoString) return;
       try {
@@ -236,7 +235,6 @@
 
       console.log("そらしる：気象庁データ同期中...");
       
-      // 発表時刻の初期反映フラグ（最初の1件成功時に全体に適用する）
       let hasSetReportTime = false;
 
       const promises = targetCities.map(async (city) => {
@@ -246,7 +244,6 @@
           
           const forecastBlock = json[0];
           
-          // ✨ 最初にとれた有効なデータのreportDatetimeを利用して左上のラベルを更新 ✨
           if (!hasSetReportTime && forecastBlock.reportDatetime) {
             updateReportTimeLabel(forecastBlock.reportDatetime);
             hasSetReportTime = true;
