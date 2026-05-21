@@ -1,10 +1,13 @@
-name: Take Weather Screenshot
+name: Take Weather Screenshot and Notify Discord
 
 on:
   schedule:
-    - cron: '30 20 * * *'
-    - cron: '30 8 * * *'
-  workflow_dispatch:
+    # 📝 毎日2回定期実行（UTC表記）
+    # 1. 日本時間 朝06:00 ➡ UTC 前日21:00
+    # 2. 日本時間 夕18:00 ➡ UTC 当日09:00
+    - cron: '0 21 * * *'
+    - cron: '0 9 * * *'
+  workflow_dispatch: # 手動実行用ボタン
 
 permissions:
   contents: write
@@ -28,9 +31,25 @@ jobs:
         npm install puppeteer
 
     - name: Take Screenshot
+      id: capture_step # あとでファイル名を参照するためにIDをつける
       run: |
-        # サーバー起動処理を削除し、直接スクショスクリプトだけを実行
         node capture.js
+
+    - name: Send Screenshot to Discord
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        # capture.js から出力されたファイルパスを取得
+        FILEPATH="${{ steps.capture_step.outputs.filepath }}"
+        FILENAME="${{ steps.capture_step.outputs.filename }}"
+        
+        # メッセージの文章を作成（お好みで変更してください）
+        MESSAGE="☀️ **そらしるお天気情報が更新されました！** ☀️"
+        
+        echo "Discordへ画像を送信中: $FILENAME"
+        
+        # cURLコマンドを使って、DiscordのWebhookに画像をスタンドアロンでアップロード
+        curl -X POST -F "content=$MESSAGE" -F "file=@$FILEPATH" $DISCORD_WEBHOOK
 
     - name: Commit and Push Screenshot
       run: |
