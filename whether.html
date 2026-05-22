@@ -143,7 +143,6 @@
   </div>
 
   <script>
-    // 全27都市の定義（tempStationを追加して、個別の気象官署名・アメダス名にマッピング）
     const targetCities = [
       { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1456, "y": 159, "tempStation": "旭川" },
       { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1281, "y": 200, "tempStation": "札幌" },
@@ -223,8 +222,10 @@
             bgLayer.style.backgroundImage = "url('assets/whether/today.png')";
           }
         }
+        return hours; // 発表時間を返す
       } catch (e) {
         console.error("発表時刻の解析、または背景切り替えに失敗しました:", e);
+        return 17;
       }
     }
 
@@ -234,44 +235,87 @@
 
       console.log("そらしる：気象庁データ同期中...");
       let hasSetReportTime = false;
+      let reportHours = 17; // デフォルトは夕方発表扱い
 
       const promises = targetCities.map(async (city) => {
         try {
           const response = await fetch(`${city.url}?t=${Date.now()}`);
           const json = await response.json();
+          
+          // 💡 json[0]が短期予報、json[1]が週間予報ブロック
           const forecastBlock = json[0];
+          const weeklyBlock = json[1];
           
           if (!hasSetReportTime && forecastBlock.reportDatetime) {
-            updateReportTimeAndBackground(forecastBlock.reportDatetime);
+            reportHours = updateReportTimeAndBackground(forecastBlock.reportDatetime);
             hasSetReportTime = true;
           }
 
+          // 1. 天気マークの取得
           const timeSeries = forecastBlock.timeSeries;
-          
-          // 天気情報のパース処理（従来どおり部分一致で検索）
           let areaData = timeSeries[0].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
           if (!areaData) areaData = timeSeries[0].areas[0];
           
           const weatherCode = areaData.weatherCodes[0]; 
           const finalCode = convertWeatherCode(weatherCode);
 
-          // 気温情報のパース処理（tempStationプロパティを用いて、正確なエリアから取得）
+          // 2. 気温データの取得（夕方17時発表＝明日予報 のバグを徹底対策）
           let tempMin = "--";
           let tempMax = "--";
-          
-          if (timeSeries[2]) {
-            let tempAreaData = timeSeries[2].areas.find(a => 
-              a.area.name === city.tempStation || 
-              a.area.name.includes(city.tempStation) || 
-              city.tempStation.includes(a.area.name)
-            );
+
+          if (reportHours === 17) {
+            // 【夕方17時発表のとき】明日の最低・最高気温は「json[1] (週間予報)」のインデックス1（明日）から取得するのが確実
+            if (weeklyBlock && weeklyBlock.timeSeries && weeklyBlock.timeSeries[1]) {
+              const weeklyTempSeries = weeklyBlock.timeSeries[1];
+              let tempAreaData = weeklyTempSeries.areas.find(a => 
+                a.area.name === city.tempStation || 
+                a.area.name.includes(city.tempStation) || 
+                city.tempStation.includes(a.area.name)
+              );
+              
+              if (tempAreaData) {
+                // 週間予報の配列のインデックス1が「明日」のデータ
+                tempMin = tempAreaData.tempsMin ? tempAreaData.tempsMin[1] : "--";
+                tempMax = tempAreaData.tempsMax ? tempAreaData.tempsMax[1] : "--";
+              }
+            }
             
-            if (tempAreaData && tempAreaData.temps && tempAreaData.temps.length >= 2) {
-              tempMin = tempAreaData.temps[0] || "--"; // 最初の要素が最低気温
-              tempMax = tempAreaData.temps[1] || "--"; // 次の要素が最高気温
+            // 伊豆（大島）など、json[1]側に個別データが存在しない特殊地域用のバックアップ
+            if ((tempMin === "--" || tempMin === "") && timeSeries[2]) {
+              let tempAreaData = timeSeries[2].areas.find(a => 
+                a.area.name === city.tempStation || a.area.name.includes(city.tempStation)
+              );
+              if (tempAreaData && tempAreaData.temps && tempAreaData.temps.length >= 2) {
+                tempMin = tempAreaData.temps[0] || "--";
+                tempMax = tempAreaData.temps[1] || "--";
+              }
+            }
+          } else {
+            // 【朝5時・11時発表のとき】当日の最高・最低気温なので、従来どおり json[0].timeSeries[2] から取得
+            if (timeSeries[2]) {
+              let tempAreaData = timeSeries[2].areas.find(a => 
+                a.area.name === city.tempStation || 
+                a.area.name.includes(city.tempStation) || 
+                city.tempStation.includes(a.area.name)
+              );
+              
+              if (tempAreaData && tempAreaData.temps) {
+                // 朝発表の場合はデータ構造に応じて設定（一般都市は[1]が最高、[2]が最低など変動するため安全に割り当て）
+                if (tempAreaData.temps.length >= 2) {
+                  tempMin = tempAreaData.temps[0] || "--";
+                  tempMax = tempAreaData.temps[1] || "--";
+                } else {
+                  tempMax = tempAreaData.temps[0] || "--";
+                }
+              }
             }
           }
 
+          // 空文字で返ってきた場合の安全処理
+          if (!tempMin) tempMin = "--";
+          if (!tempMax) tempMax = "--";
+
+          // ピンの生成と配置
           const pin = document.createElement('div');
           pin.className = 'city-pin';
           pin.style.left = `${city.x}px`;
