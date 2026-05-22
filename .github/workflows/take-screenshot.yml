@@ -2,11 +2,9 @@ name: Take Weather Screenshot and Notify Discord
 
 on:
   schedule:
-    # 毎日2回定期実行（UTC表記）
-    # 1. 日本時間 朝06:00 ➡ UTC 前日21:00
-    # 2. 日本時間 夕18:00 ➡ UTC 当日09:00
-    - cron: '0 21 * * *'
-    - cron: '0 9 * * *'
+    # 📝 混雑する「00分」を少しズラして、早めに起動させやすく設定（朝05:45、夕17:45目安）
+    - cron: '45 20 * * *'  # UTC 20:45 ➡ JST 翌朝 05:45
+    - cron: '45 8 * * *'   # UTC 08:45  ➡ JST 当日夕 17:45
   workflow_dispatch: 
 
 env:
@@ -46,12 +44,13 @@ jobs:
       run: |
         FILENAME="${{ steps.capture_step.outputs.filename }}"
         
+        # 💡 ファイル名（JST基準）から実行時間をしっかりパース
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
         EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
-        REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
         
+        # 朝（05~07時台の実行）なら「きょう」、夕方（17~19時台の実行）なら「あす」
         TARGET_DAY="きょう"
-        if [ "$REPORT_HOUR" -eq 17 ]; then
+        if [ "$EXEC_HOUR_CLEAN" -ge 12 ]; then
           TARGET_DAY="あす"
         fi
 
@@ -94,25 +93,21 @@ jobs:
       run: |
         FILEPATH="${{ steps.capture_step.outputs.filepath }}"
         FILENAME="${{ steps.capture_step.outputs.filename }}"
-        SUMMARY="${{ steps.gemini_step.outputs.summary }}"
+        SUMMARY="${{ secrets.GEMINI_API_KEY && steps.gemini_step.outputs.summary || '全国の天気をお伝えします。' }}"
         
         DAY=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{6}([0-9]{2})_[0-9]{4}\.png/\1/')
         EXEC_HOUR=$(echo "$FILENAME" | sed -E 's/weather_[0-9]{8}_([0-9]{2})[0-9]{2}\.png/\1/')
-        
         EXEC_HOUR_CLEAN=$(echo "$EXEC_HOUR" | sed 's/^0//')
-        REPORT_HOUR=$((EXEC_HOUR_CLEAN - 1))
         
-        if [ "$REPORT_HOUR" -eq 17 ]; then
+        # 気象庁の発表時間は、朝実行なら「05時」、夕方実行なら「17時」にテキスト固定化
+        if [ "$EXEC_HOUR_CLEAN" -ge 12 ]; then
           TITLE="【あすの天気予報】"
+          REPORT_HOUR="17"
         else
           TITLE="【きょうの天気予報】"
-        fi
-        
-        if [ "$REPORT_HOUR" -lt 10 ]; then
-          REPORT_HOUR="0$REPORT_HOUR"
+          REPORT_HOUR="05"
         fi
 
-        # ✨ タイトルの太字化＆1行にまとめるレイアウト変更をここに統合しました
         MESSAGE="**${TITLE}** ${DAY}日${REPORT_HOUR}時 気象庁発表"$'\n'"$SUMMARY"
         
         echo "Discordへ送信するメッセージ:"
