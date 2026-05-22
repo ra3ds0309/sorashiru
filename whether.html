@@ -12,7 +12,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: #22252a; }
 
-    /* 2pxの余白を強制カット */
     .viewport-trimmer {
       width: 1920px;
       height: 1080px;
@@ -30,7 +29,6 @@
       transform: scale(1.005); 
     }
 
-    /* 背景マップ（JSから動的に背景画像を書き換えるため、初期のbackgroundは指定しない） */
     .map-layer {
       position: absolute;
       top: 0;
@@ -53,7 +51,6 @@
       z-index: 2;
     }
 
-    /* データ配置用レイヤー */
     .content-overlay {
       position: absolute;
       top: 0;
@@ -63,7 +60,6 @@
       z-index: 3;
     }
 
-    /* 左上：発表時刻のスタイル (Noto Sans JP / 500 / 28px) */
     .report-time-tag {
       position: absolute;
       top: 125px;
@@ -77,7 +73,6 @@
       z-index: 4;
     }
 
-    /* 右上：著作権表記のスタイル (Roboto / 400) */
     .copyright-tag {
       position: absolute;
       top: 30px;
@@ -90,7 +85,6 @@
       z-index: 4;
     }
 
-    /* 都市ピンのスタイル */
     .city-pin {
       position: absolute;
       width: 120px;
@@ -101,14 +95,12 @@
       transform: translate(-50%, -50%);
     }
 
-    /* 天気アイコンのスタイル */
     .city-icon {
       width: 104px;
       height: 104px;
       filter: drop-shadow(0px 4px 0px rgba(0,0,0,0));
     }
 
-    /* 気温コンテナのスタイル (Roboto / 600) */
     .city-temp {
       font-family: 'Roboto', sans-serif;
       font-size: 30px;
@@ -116,26 +108,22 @@
       margin-top: -15px;
       text-shadow: none !important;
       white-space: nowrap;
-      
       display: flex;
       justify-content: center;
       align-items: center;
     }
     
-    /* 数字フォントの幅固定（ズレ対策） */
     .t-min, .t-max {
       display: inline-block;
       width: 45px;
       text-align: center;
     }
     
-    /* 最低気温（青） */
     .t-min {
       color: #3BAEFF;
       margin-right: 10px;
     }
     
-    /* 最高気温（赤） */
     .t-max {
       color: #EC1D35;
     }
@@ -155,7 +143,6 @@
   </div>
 
   <script>
-    // 全27都市の座標データ配列
     const targetCities = [
       { "name": "旭川", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/012000.json", "x": 1456, "y": 159 },
       { "name": "札幌", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/016000.json", "x": 1281, "y": 200 },
@@ -186,7 +173,6 @@
       { "name": "石垣島", "url": "https://www.jma.go.jp/bosai/forecast/data/forecast/474000.json", "x": 166, "y": 319 }
     ];
 
-    // コード変換表マッピング
     const jmaIconMap = {
       "100": "100", "101": "101", "102": "102", "103": "102", "104": "104", "105": "104", "106": "102", "107": "102", "108": "102",
       "110": "110", "111": "110", "112": "112", "113": "112", "114": "112", "115": "115", "116": "115", "117": "115", "118": "112",
@@ -217,9 +203,12 @@
     function updateReportTimeAndBackground(isoString) {
       if (!isoString) return;
       try {
+        // 💡 ランナー環境がUTCでも、強制的に日本時間表示へパース（JSTオブジェクト化）
         const date = new Date(isoString);
-        const day = date.getDate();
-        const hours = date.getHours();
+        const jstDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Tokyo" }));
+        
+        const day = jstDate.getDate();
+        const hours = jstDate.getHours();
         
         const labelElement = document.getElementById('report-time');
         if (labelElement) {
@@ -230,10 +219,8 @@
         if (bgLayer) {
           if (hours === 17) {
             bgLayer.style.backgroundImage = "url('assets/whether/tomorrow.png')";
-            console.log("そらしる：17時発表データのため背景を【tomorrow.png】に設定しました。");
           } else {
             bgLayer.style.backgroundImage = "url('assets/whether/today.png')";
-            console.log(`そらしる：${hours}時発表データのため背景を【today.png】に設定しました。`);
           }
         }
       } catch (e) {
@@ -246,14 +233,12 @@
       container.innerHTML = ''; 
 
       console.log("そらしる：気象庁データ同期中...");
-      
       let hasSetReportTime = false;
 
       const promises = targetCities.map(async (city) => {
         try {
           const response = await fetch(`${city.url}?t=${Date.now()}`);
           const json = await response.json();
-          
           const forecastBlock = json[0];
           
           if (!hasSetReportTime && forecastBlock.reportDatetime) {
@@ -262,7 +247,6 @@
           }
 
           const timeSeries = forecastBlock.timeSeries;
-          
           let areaData = timeSeries[0].areas.find(a => a.area.name.includes(city.name) || city.name.includes(a.area.name));
           if (!areaData) areaData = timeSeries[0].areas[0];
           
@@ -293,16 +277,12 @@
           `;
 
           container.appendChild(pin);
-
         } catch (error) {
           console.error(`${city.name}の天気データの取得に失敗しました:`, error);
         }
       });
 
       await Promise.all(promises);
-      console.log("そらしる：すべての天気データをマップに反映しました。");
-      
-      // ✨【追加】すべてのAPIフェッチ・描写処理が完了したサインを出す
       window.weatherDataLoaded = true;
     }
 
