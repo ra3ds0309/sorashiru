@@ -39,30 +39,29 @@ const cityUrlMap = {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // 先にバックグラウンドで気象庁のリアルタイムデータをまとめてフェッチ・解析する
   console.log('気象庁のデータを収集しています...');
   const weatherTextList = [];
   
-  // 1時間引いた値（5時か17時発表か）をベースに、JSON内の配列インデックス(きょう=0, あす=1)を決める
-  const nowTime = new Date(Date.now() + ((new Date().getTimezoneOffset() + 540) * 60 * 1000));
-  const isTomorrowTarget = nowTime.getHours() >= 12; // 12時以降の実行（18時など）なら「あす」を対象とする
+  // 基準を完全に日本時間（JST）に強制変換
+  const nowTime = new Date(Date.now() + (9 * 60 * 60 * 1000)); 
+  const currentJstHour = nowTime.getHours();
+
+  // 💡 日本時間の昼12時以降（18時実行など）なら、気象庁JSONのインデックス[1]（あす）を取得する
+  const isTomorrowTarget = currentJstHour >= 12;
   const targetIndex = isTomorrowTarget ? 1 : 0;
 
   for (const [cityName, url] of Object.entries(cityUrlMap)) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(`${url}?t=${Date.now()}`);
       const data = await response.json();
-      // 気象庁JSONの構造から、該当都市のエリアに一致する天気テキストを抽出
       const timeSeries = data[0].timeSeries[0];
       
-      // 基本的に1番目のエリア代表データを取得（伊豆諸島・小笠原・奄美などはインデックスを調整して正確に捕捉）
       let areaIndex = 0;
       if (cityName === "伊豆諸島") areaIndex = 1;
       if (cityName === "小笠原諸島") areaIndex = 2;
       if (cityName === "奄美") areaIndex = 1;
 
       const weatherText = timeSeries.areas[areaIndex]?.weathers?.[targetIndex] || "不明";
-      // 余計な改行やスペースをトリミング
       const cleanWeather = weatherText.replace(/\s+/g, '');
       weatherTextList.push(`${cityName}:${cleanWeather}`);
     } catch (e) {
@@ -80,6 +79,9 @@ const cityUrlMap = {
 
   const page = await browser.browserContexts()[0]?.pages()[0] || await browser.newPage();
   await page.setViewport({ width: 1920, height: 1080 });
+  
+  // ブラウザ側の環境（タイムゾーン・言語設定）を完全に日本に固定
+  await page.emulateTimezone('Asia/Tokyo');
   await page.setExtraHTTPHeaders({ 'Accept-Language': 'ja-JP,ja;q=0.9' });
 
   console.log('公開されている そらしる天気ページ を読み込み中...');
@@ -112,7 +114,6 @@ const cityUrlMap = {
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `filepath=${screenshotPath}\n`);
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `filename=${filename}.png\n`);
-    // ✨【ここが重要】気象庁からパースした純粋な「全27都市のリアルな天気データ」を完璧に渡す
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `raw_data=${rawDataString}\n`);
     console.log('GitHub Actionsへ出力データを正常に引き渡しました。');
   }
