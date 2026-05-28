@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&family=Roboto:wght@700;900&display=swap" rel="stylesheet">
 
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: #111317; color: #ffffff; font-family: 'Noto Sans JP', sans-serif; }
@@ -19,25 +22,26 @@
       overflow: hidden;
     }
 
-    /* 背景：台風用の広域マップ */
-    .base-container {
-      width: 100%;
-      height: 100%;
-      background: #1c1f24 url('assets/typhoon/map_bg.jpg') no-repeat center/cover;
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
-
-    /* 台風の進路や予報円を描画するためのキャンバスレイヤー */
-    #typhoon-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
+    /* Leafletマップ用のコンテナ（画面全体に広げる） */
+    #map {
       width: 1920px;
       height: 1080px;
+      position: absolute;
+      top: 0;
+      left: 0;
       z-index: 1;
-      pointer-events: none;
+      background: #0b1d33; /* 地図読み込み前の背景色（深い海の色） */
+    }
+
+    /* テレビ風：画面を締める前面の黒いボックス枠（お好みでbox.pngに変えてもOKです） */
+    .ui-overlay-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none; /* マップの操作を邪魔しないようにする */
     }
 
     /* 左側のテレビ風台風ステータステルプ */
@@ -46,8 +50,8 @@
       top: 80px;
       left: 60px;
       width: 540px;
-      background: rgba(15, 20, 30, 0.85);
-      border-left: 12px solid #ff3b30; /* 台風の警戒感を表す赤帯 */
+      background: rgba(15, 20, 30, 0.88);
+      border-left: 12px solid #ff3b30;
       border-radius: 4px;
       padding: 30px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.6);
@@ -68,7 +72,7 @@
     }
     
     .typhoon-number {
-      color: #ffcc00; /* 号数は目立つ黄色 */
+      color: #ffcc00;
       font-size: 48px;
       font-weight: 900;
       margin-right: 15px;
@@ -135,15 +139,20 @@
       z-index: 100;
       display: none;
     }
+
+    /* Leafletのクレジット表記などをテレビ画面っぽく非表示にする */
+    .leaflet-control-attribution, .leaflet-control-zoom {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
 
   <div class="viewport-trimmer">
-    <div class="base-container">
-      
-      <div class="title-tag">台風情報</div>
+    <div id="map"></div>
 
+    <div class="ui-overlay-layer">
+      <div class="title-tag">台風情報</div>
       <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
 
       <div class="typhoon-telop-box" id="telop-container" style="display: none;">
@@ -177,9 +186,6 @@
           <span class="status-value"><span class="font-roboto" id="t-gust">---</span> m/s</span>
         </div>
       </div>
-
-      <canvas id="typhoon-canvas" width="1920" height="1080"></canvas>
-
     </div>
   </div>
 
@@ -187,13 +193,29 @@
     const TYPHOON_LIST_URL = "https://www.jma.go.jp/bosai/information/data/typhoon.json";
     const TYPHOON_DETAIL_BASE = "https://www.jma.go.jp/bosai/typhoon/data/";
 
+    let map;
+
+    // Leaflet マップの初期化
+    function initMap() {
+      // 初期位置を日本近海（沖縄〜本州の間くらい）に設定
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([25.0, 135.0], 5);
+
+      // スタイリッシュでダークな地図タイル（CartoDB Dark Matter）を採用
+      // ※もし通常の地図が良ければ、地理院地図やOpenStreetMapに変更可能です
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 10,
+        minZoom: 3
+      }).addTo(map);
+    }
+
     async function loadTyphoonData() {
       const infoMsg = document.getElementById("info-message");
 
       try {
-        console.log("そらしる台風：台風リストの同期を開始...");
-        
-        // 1. 現在発生している台風のリスト(eventId)を取得
+        console.log("そらしる台風：同期開始...");
         const listResponse = await fetch(`${TYPHOON_LIST_URL}?t=${Date.now()}`);
         const typhoonList = await listResponse.json();
 
@@ -203,7 +225,6 @@
           return;
         }
 
-        // 複数の台風がある場合は、まず最新の1つ目(index 0)をターゲットにする
         const currentTyphoon = typhoonList[0];
         const eventId = currentTyphoon.eventId;
         
@@ -213,74 +234,53 @@
           return;
         }
 
-        console.log(`そらしる台風：対象のeventIdを発見 -> ${eventId}`);
-
-        // 2. 記憶したeventIdを埋め込んで詳細データを取得
         const detailUrl = `${TYPHOON_DETAIL_BASE}${eventId}/specifications.json?t=${Date.now()}`;
         const detailResponse = await fetch(detailUrl);
         const specifications = await detailResponse.json();
 
-        console.log("そらしる台風：詳細データの解析成功", specifications);
-
-        // 3. 画面テロップへのデータ反映処理
+        // 1. テロップ情報の描画
         parseAndRenderTelop(specifications);
         
-        // 4. 地図上へのプロット処理（次のステップ用）
-        drawTyphoonTrack(specifications);
+        // 2. Leaflet地図上への進路プロット描画
+        drawTyphoonOnMap(specifications);
 
       } catch (error) {
-        console.error("台風情報の取得・解析に失敗しました:", error);
+        console.error("台風情報の取得に失敗しました:", error);
         infoMsg.innerText = "台風データの取得エラーが発生しました。";
         infoMsg.style.display = "block";
       }
     }
 
-    // 気象庁配列データを解析してフロントテロップに適用する
+    // テロップパース処理
     function parseAndRenderTelop(dataArray) {
       const telopBox = document.getElementById("telop-container");
-      
-      // 安全チェック
       if (!dataArray || dataArray.length < 2) return;
 
-      // 1. タイトルブロック(index 0)の解析
       const titleBlock = dataArray[0];
       let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
-      // 例: "2606" の後ろ2桁を抽出して「6号」にする処理
       if (rawNumber.length === 4) {
         rawNumber = parseInt(rawNumber.substring(2, 4), 10);
       }
       const typhoonName = (titleBlock.name && titleBlock.name.jp) ? titleBlock.name.jp : "無名";
 
-      // 2. 実況ブロック(index 1)の解析
       const analysisBlock = dataArray[1];
-      
-      // 強さの階層（強い、非常に強い、猛烈な、または「-」の場合はなし）
       let intensity = analysisBlock.intensity || "---";
       if (intensity === "-") intensity = "なし";
 
-      // 存在地域
       const location = analysisBlock.location || "---";
 
-      // 進行方向と速度の組み立て
       let course = analysisBlock.course || "";
       let speedNote = (analysisBlock.speed && analysisBlock.speed.note && analysisBlock.speed.note.jp) ? analysisBlock.speed.note.jp : "";
       let speedKm = (analysisBlock.speed && analysisBlock.speed.km/h) ? `${analysisBlock.speed.km/h}km/h` : "";
-      
       let directionSpeed = "---";
       if (course || speedNote || speedKm) {
-        // 「ゆっくり」などの表現があればそれを優先、なければkm/hを結合
-        const speedStr = speedNote || speedKm;
-        directionSpeed = `${course} ${speedStr}`.trim();
+        directionSpeed = `${course} ${speedNote || speedKm}`.trim();
       }
 
-      // 気圧・風速
       const pressure = analysisBlock.pressure || "---";
-      const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) 
-                      ? analysisBlock.maximumWind.sustained["m/s"] : "---";
-      const maxGust = (analysisBlock.maximumWind && analysisBlock.maximumWind.gust && analysisBlock.maximumWind.gust["m/s"]) 
-                      ? analysisBlock.maximumWind.gust["m/s"] : "---";
+      const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) ? analysisBlock.maximumWind.sustained["m/s"] : "---";
+      const maxGust = (analysisBlock.maximumWind && analysisBlock.maximumWind.gust && analysisBlock.maximumWind.gust["m/s"]) ? analysisBlock.maximumWind.gust["m/s"] : "---";
 
-      // DOM（HTML要素）への反映
       document.getElementById("t-num").textContent = `台風${rawNumber}号`;
       document.getElementById("t-name").textContent = `（${typhoonName}）`;
       document.getElementById("t-intensity").textContent = intensity;
@@ -290,21 +290,91 @@
       document.getElementById("t-wind").textContent = maxWind;
       document.getElementById("t-gust").textContent = maxGust;
 
-      // 反映完了したらテロップを表示
       telopBox.style.display = "block";
     }
 
-    // Canvasへの経路描画処理（モック状態）
-    function drawTyphoonTrack(dataArray) {
-      const canvas = document.getElementById("typhoon-canvas");
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // ここにこのあと、各オブジェクトの "position.deg": [緯度, 経度] を
-      // 画面のピクセル座標にコンバートして描画するロジックを載せます！
+    // 💡 Leafletを使った進路図・予報円の自動描画ロジック
+    function drawTyphoonOnMap(dataArray) {
+      if (!dataArray || dataArray.length < 2) return;
+
+      const latLngs = []; // 線を結ぶための緯度経度配列
+
+      dataArray.forEach((block, index) => {
+        // タイトルブロック(index 0)は座標がないのでスキップ
+        if (block.part === "title" || !block.position || !block.position.deg) return;
+
+        const lat = block.position.deg[0]; // 緯度
+        const lng = block.position.deg[1]; // 経度
+        latLngs.push([lat, lng]);
+
+        if (index === 1) {
+          // 【実況（現在地）の描画】
+          // 現在地マーク（赤い二重丸）
+          L.circleMarker([lat, lng], {
+            radius: 8,
+            color: '#ff3b30',
+            fillColor: '#ff3b30',
+            fillOpacity: 1,
+            weight: 2
+          }).addTo(map);
+
+          // 暴風域・強風域の描画（データがある場合）
+          if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
+            const radiusKm = block.galeWarning[0].range.km;
+            L.circle([lat, lng], {
+              radius: radiusKm * 1000, // メートル換算
+              color: '#ff9500',
+              weight: 1.5,
+              fillColor: '#ff9500',
+              fillOpacity: 0.15
+            }).addTo(map);
+          }
+        } else {
+          // 【予報円（未来）の描画】
+          if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
+            const radiusKm = block.probabilityCircleRadius.km;
+            
+            // 白い点線の予報円を描画
+            L.circle([lat, lng], {
+              radius: radiusKm * 1000,
+              color: '#ffffff',
+              weight: 2,
+              dashArray: '6, 6', // 点線スタイル
+              fillColor: '#ffffff',
+              fillOpacity: 0.05
+            }).addTo(map);
+
+            // 予報円の中心点を小さくプロット
+            L.circleMarker([lat, lng], {
+              radius: 3,
+              color: '#ffffff',
+              fillColor: '#ffffff',
+              fillOpacity: 1
+            }).addTo(map);
+          }
+        }
+      });
+
+      // 各点を結ぶ進路予想の「太い白線」を描画
+      if (latLngs.length > 1) {
+        L.polyline(latLngs, {
+          color: '#ffffff',
+          weight: 4,
+          opacity: 0.8
+        }).addTo(map);
+      }
+
+      // 台風の位置に合わせて、マップのカメラ位置を自動フィットさせる
+      if (latLngs.length > 0) {
+        const bounds = L.latLngBounds(latLngs);
+        map.fitBounds(bounds, { padding: [200, 200] }); // 画面端のテロップに被らないよう余白(padding)を設定
+      }
     }
 
-    window.addEventListener('DOMContentLoaded', loadTyphoonData);
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadTyphoonData();
+    });
   </script>
 </body>
 </html>
