@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>そらしる台風情報</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&family=Roboto:wght@700;900&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 1920px; height: 1080px; overflow: hidden; background: #111317; color: #ffffff; font-family: 'Noto Sans JP', sans-serif; }
+
+    .viewport-trimmer {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 背景：台風用の広域マップ（※アセットパスは環境に合わせて調整してください） */
+    .base-container {
+      width: 100%;
+      height: 100%;
+      background: #1c1f24 url('assets/typhoon/map_bg.jpg') no-repeat center/cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* 台風の進路や予報円を描画するためのキャンバスレイヤー */
+    #typhoon-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* 左側のテレビ風台風ステータステルプ */
+    .typhoon-telop-box {
+      position: absolute;
+      top: 80px;
+      left: 60px;
+      width: 520px;
+      background: rgba(15, 20, 30, 0.85);
+      border-left: 12px solid #ff3b30; /* 台風の警戒感を表す赤帯 */
+      border-radius: 4px;
+      padding: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+
+    .telop-header {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 0.05em;
+      border-bottom: 3px solid rgba(255,255,255,0.2);
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    
+    .typhoon-number {
+      color: #ffcc00; /* 号数は目立つ黄色 */
+      font-size: 50px;
+      margin-right: 10px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .status-label {
+      color: #aaaaaa;
+      font-weight: 500;
+    }
+
+    .status-value {
+      font-weight: 700;
+      font-size: 28px;
+    }
+    
+    .font-roboto {
+      font-family: 'Roboto', sans-serif;
+      font-size: 34px;
+      color: #ffffff;
+    }
+
+    /* 右上のヘッダータグ */
+    .title-tag {
+      position: absolute;
+      top: 40px;
+      right: 60px;
+      background: #ff3b30;
+      color: white;
+      font-weight: 900;
+      font-size: 28px;
+      padding: 8px 25px;
+      border-radius: 4px;
+      letter-spacing: 0.1em;
+      z-index: 10;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    /* エラー通知や台風未発生時の表示 */
+    .info-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: 700;
+      background: rgba(0,0,0,0.7);
+      padding: 20px 50px;
+      border-radius: 10px;
+      z-index: 100;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="viewport-trimmer">
+    <div class="base-container">
+      
+      <div class="title-tag">台風情報</div>
+
+      <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
+
+      <div class="typhoon-telop-box" id="telop-container" style="display: none;">
+        <div class="telop-header">
+          <span class="typhoon-number" id="t-num">台風--号</span>
+          <span id="t-name">---</span>
+        </div>
+        
+        <div class="status-row">
+          <span class="status-label">大きさ・強さ</span>
+          <span class="status-value" id="t-intensity">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">存在地域</span>
+          <span class="status-value" id="t-location">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">進行方向・速さ</span>
+          <span class="status-value" id="t-direction">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">中心気圧</span>
+          <span class="status-value"><span class="font-roboto" id="t-pressure">---</span> hPa</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">最大風速</span>
+          <span class="status-value"><span class="font-roboto" id="t-wind">---</span> m/s</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">最大瞬間風速</span>
+          <span class="status-value"><span class="font-roboto" id="t-gust">---</span> m/s</span>
+        </div>
+      </div>
+
+      <canvas id="typhoon-canvas" width="1920" height="1080"></canvas>
+
+    </div>
+  </div>
+
+  <script>
+    // 1. 気象庁の台風情報エンドポイント定義
+    const TYPHOON_LIST_URL = "https://www.jma.go.jp/bosai/information/data/typhoon.json";
+    const TYPHOON_DETAIL_BASE = "https://www.jma.go.jp/bosai/typhoon/data/";
+
+    async function loadTyphoonData() {
+      const infoMsg = document.getElementById("info-message");
+      const telopBox = document.getElementById("telop-container");
+
+      try {
+        console.log("そらしる台風：台風リストの同期を開始...");
+        
+        // 段階1: 現在発生している台風のリスト(eventId)を取得
+        const listResponse = await fetch(`${TYPHOON_LIST_URL}?t=${Date.now()}`);
+        const typhoonList = await listResponse.json();
+
+        // 台風が存在しない場合、または空配列の場合
+        if (!typhoonList || typhoonList.length === 0) {
+          infoMsg.innerText = "現在、発表中の台風情報はありません。";
+          infoMsg.style.display = "block";
+          return;
+        }
+
+        // 複数の台風がある場合は、まず最新の1つ目(index 0)をターゲットにします
+        const currentTyphoon = typhoonList[0];
+        const eventId = currentTyphoon.eventId;
+        
+        if (!eventId) {
+          infoMsg.innerText = "台風データのイベントIDが見つかりません。";
+          infoMsg.style.display = "block";
+          return;
+        }
+
+        console.log(`そらしる台風：対象のeventIdを発見 -> ${eventId}`);
+
+        // 段階2: 記憶したeventIdを埋め込んで詳細データを取得
+        const detailUrl = `${TYPHOON_DETAIL_BASE}${eventId}/specifications.json?t=${Date.now()}`;
+        const detailResponse = await fetch(detailUrl);
+        const specifications = await detailResponse.json();
+
+        console.log("そらしる台風：詳細データの解析成功", specifications);
+
+        // 3. 画面テロップへのデータ反映処理
+        parseAndRenderTelop(specifications);
+        
+        // 4. 地図上へのプロット（後ほど地図の座標変換ロジックを組むための器）
+        drawTyphoonTrack(specifications);
+
+      } catch (error) {
+        console.error("台風情報の取得・解析に失敗しました:", error);
+        infoMsg.innerText = "台風データの取得エラーが発生しました。";
+        infoMsg.style.display = "block";
+      }
+    }
+
+    // テロップ（テキスト情報）を解析してHTMLを書き換える関数
+    function parseAndRenderTelop(data) {
+      const telopBox = document.getElementById("telop-container");
+      
+      // 気象庁のjsonの最上位階層にある基本プロパティを安全に抽出
+      // ※実際のJSON構造のキー名に合わせて後ほど最適化していきます
+      const parsedNumber = data.tcNumber || "--"; 
+      const parsedName = data.nameJa || data.name || "無名";
+      
+      // 現在の台風位置・中心情報ブロック（通常は配列の最初の要素、または特定キーに入っています）
+      const currentStatus = data.properties || {};
+
+      document.getElementById("t-num").textContent = `台風${parsedNumber}号`;
+      document.getElementById("t-name").textContent = parsedName;
+      
+      // 各ステータスの書き換え（データが存在しない場合のフォールバック付き）
+      document.getElementById("t-intensity").textContent = data.intensityClass || "---";
+      document.getElementById("t-location").textContent = data.locationName || "---";
+      document.getElementById("t-direction").textContent = data.moveDirectionSpeed || "---";
+      document.getElementById("t-pressure").textContent = data.centralPressure || "---";
+      document.getElementById("t-wind").textContent = data.maxWindSpeed || "---";
+      document.getElementById("t-gust").textContent = data.maxGustSpeed || "---";
+
+      // 準備ができたらテロップを表示
+      telopBox.style.display = "block";
+    }
+
+    // Canvasを使って台風の進路や予報円を描画する関数（モック状態）
+    function drawTyphoonTrack(data) {
+      const canvas = document.getElementById("typhoon-canvas");
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      console.log("そらしる台風：Canvasへの経路描画ロジックの準備完了");
+      
+      // ここに、データの緯度・経度（Latitude / Longitude）を
+      // 1920x1080の画面ピクセル座標(X, Y)に変換して線や円を引く処理を追加していきます。
+    }
+
+    // 読み込み完了時に実行
+    window.addEventListener('DOMContentLoaded', loadTyphoonData);
+  </script>
+</body>
+</html>
