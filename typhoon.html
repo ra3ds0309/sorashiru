@@ -33,7 +33,7 @@
       background: #0b1d33; /* 地図読み込み前の背景色（深い海の色） */
     }
 
-    /* テレビ風：画面を締める前面の黒いボックス枠（お好みでbox.pngに変えてもOKです） */
+    /* 前面のUI・テロップ用レイヤー（マップの操作を邪魔しないように pointer-events: none;） */
     .ui-overlay-layer {
       position: absolute;
       top: 0;
@@ -41,7 +41,7 @@
       width: 100%;
       height: 100%;
       z-index: 2;
-      pointer-events: none; /* マップの操作を邪魔しないようにする */
+      pointer-events: none;
     }
 
     /* 左側のテレビ風台風ステータステルプ */
@@ -57,6 +57,7 @@
       box-shadow: 0 20px 40px rgba(0,0,0,0.6);
       z-index: 10;
       backdrop-filter: blur(10px);
+      pointer-events: auto; /* ここだけはクリックや操作を有効にする場合はauto（今回は表示のみなのでどちらでも可） */
     }
 
     .telop-header {
@@ -140,7 +141,7 @@
       display: none;
     }
 
-    /* Leafletのクレジット表記などをテレビ画面っぽく非表示にする */
+    /* Leafletのクレジット表記やズームボタンを非表示（テレビ風画面用） */
     .leaflet-control-attribution, .leaflet-control-zoom {
       display: none !important;
     }
@@ -197,14 +198,12 @@
 
     // Leaflet マップの初期化
     function initMap() {
-      // 初期位置を日本近海（沖縄〜本州の間くらい）に設定
       map = L.map('map', {
         zoomControl: false,
         attributionControl: false
       }).setView([25.0, 135.0], 5);
 
-      // スタイリッシュでダークな地図タイル（CartoDB Dark Matter）を採用
-      // ※もし通常の地図が良ければ、地理院地図やOpenStreetMapに変更可能です
+      // テレビ風のカッコいいダークテーマ地図スタイルを採用
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 10,
         minZoom: 3
@@ -238,7 +237,7 @@
         const detailResponse = await fetch(detailUrl);
         const specifications = await detailResponse.json();
 
-        // 1. テロップ情報の描画
+        // 1. 左側テロップ情報の描画
         parseAndRenderTelop(specifications);
         
         // 2. Leaflet地図上への進路プロット描画
@@ -251,11 +250,12 @@
       }
     }
 
-    // テロップパース処理
+    // テロップパース（データ解析）処理
     function parseAndRenderTelop(dataArray) {
       const telopBox = document.getElementById("telop-container");
       if (!dataArray || dataArray.length < 2) return;
 
+      // 1. タイトルブロック(インデックス 0)の解析
       const titleBlock = dataArray[0];
       let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
       if (rawNumber.length === 4) {
@@ -263,7 +263,9 @@
       }
       const typhoonName = (titleBlock.name && titleBlock.name.jp) ? titleBlock.name.jp : "無名";
 
-      const analysisBlock = dataArray[1];
+      // 2. 実況ブロックの解析（partが"実況"のオブジェクトを検索、見つからなければ index 1 を代用）
+      const analysisBlock = dataArray.find(b => b.part === "実況" || (b.part && b.part.jp === "実況")) || dataArray[1];
+      
       let intensity = analysisBlock.intensity || "---";
       if (intensity === "-") intensity = "なし";
 
@@ -271,7 +273,10 @@
 
       let course = analysisBlock.course || "";
       let speedNote = (analysisBlock.speed && analysisBlock.speed.note && analysisBlock.speed.note.jp) ? analysisBlock.speed.note.jp : "";
-      let speedKm = (analysisBlock.speed && analysisBlock.speed.km/h) ? `${analysisBlock.speed.km/h}km/h` : "";
+      
+      // 💡 スラッシュを含むキーはブラケット記法 ["km/h"] を使用して正確に取得
+      let speedKm = (analysisBlock.speed && analysisBlock.speed["km/h"]) ? `${analysisBlock.speed["km/h"]}km/h` : "";
+      
       let directionSpeed = "---";
       if (course || speedNote || speedKm) {
         directionSpeed = `${course} ${speedNote || speedKm}`.trim();
@@ -281,6 +286,7 @@
       const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) ? analysisBlock.maximumWind.sustained["m/s"] : "---";
       const maxGust = (analysisBlock.maximumWind && analysisBlock.maximumWind.gust && analysisBlock.maximumWind.gust["m/s"]) ? analysisBlock.maximumWind.gust["m/s"] : "---";
 
+      // HTMLの要素にデータを代入
       document.getElementById("t-num").textContent = `台風${rawNumber}号`;
       document.getElementById("t-name").textContent = `（${typhoonName}）`;
       document.getElementById("t-intensity").textContent = intensity;
@@ -290,26 +296,29 @@
       document.getElementById("t-wind").textContent = maxWind;
       document.getElementById("t-gust").textContent = maxGust;
 
+      // 表示をONにする
       telopBox.style.display = "block";
     }
 
-    // 💡 Leafletを使った進路図・予報円の自動描画ロジック
+    // Leafletを使った進路図・予報円の自動描画ロジック
     function drawTyphoonOnMap(dataArray) {
       if (!dataArray || dataArray.length < 2) return;
 
-      const latLngs = []; // 線を結ぶための緯度経度配列
+      const latLngs = []; // 線（ポリライン）を結ぶための経緯度配列
 
-      dataArray.forEach((block, index) => {
-        // タイトルブロック(index 0)は座標がないのでスキップ
+      dataArray.forEach((block) => {
+        // 座標データがないブロックはスキップ
         if (block.part === "title" || !block.position || !block.position.deg) return;
 
-        const lat = block.position.deg[0]; // 緯度
-        const lng = block.position.deg[1]; // 経度
+        const lat = block.position.deg[0];
+        const lng = block.position.deg[1];
         latLngs.push([lat, lng]);
 
-        if (index === 1) {
-          // 【実況（現在地）の描画】
-          // 現在地マーク（赤い二重丸）
+        // 文字列またはオブジェクト構造に対応して実況（現在地）かどうかを判定
+        const isAnalysis = (block.part === "実況" || (block.part && block.part.jp === "実況"));
+
+        if (isAnalysis) {
+          // 【実況（現在地）のマーク】
           L.circleMarker([lat, lng], {
             radius: 8,
             color: '#ff3b30',
@@ -318,11 +327,11 @@
             weight: 2
           }).addTo(map);
 
-          // 暴風域・強風域の描画（データがある場合）
+          // 暴風域・強風域の円を描画
           if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
             const radiusKm = block.galeWarning[0].range.km;
             L.circle([lat, lng], {
-              radius: radiusKm * 1000, // メートル換算
+              radius: radiusKm * 1000, // メートル単位
               color: '#ff9500',
               weight: 1.5,
               fillColor: '#ff9500',
@@ -330,21 +339,21 @@
             }).addTo(map);
           }
         } else {
-          // 【予報円（未来）の描画】
+          // 【予報円（未来の予想位置）のマーク】
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
             const radiusKm = block.probabilityCircleRadius.km;
             
-            // 白い点線の予報円を描画
+            // 白い破線の予報円を描画
             L.circle([lat, lng], {
               radius: radiusKm * 1000,
               color: '#ffffff',
               weight: 2,
-              dashArray: '6, 6', // 点線スタイル
+              dashArray: '6, 6', // 破線（点線）
               fillColor: '#ffffff',
               fillOpacity: 0.05
             }).addTo(map);
 
-            // 予報円の中心点を小さくプロット
+            // 予報円の中心点を小さく描画
             L.circleMarker([lat, lng], {
               radius: 3,
               color: '#ffffff',
@@ -355,7 +364,7 @@
         }
       });
 
-      // 各点を結ぶ進路予想の「太い白線」を描画
+      // すべての地点を結ぶ太い経路の白線（進路予想線）を引く
       if (latLngs.length > 1) {
         L.polyline(latLngs, {
           color: '#ffffff',
@@ -364,13 +373,14 @@
         }).addTo(map);
       }
 
-      // 台風の位置に合わせて、マップのカメラ位置を自動フィットさせる
+      // 画面上のテロップに重なりすぎないよう、最適な位置にカメラを自動ズーム＆移動
       if (latLngs.length > 0) {
         const bounds = L.latLngBounds(latLngs);
-        map.fitBounds(bounds, { padding: [200, 200] }); // 画面端のテロップに被らないよう余白(padding)を設定
+        map.fitBounds(bounds, { padding: [220, 220] });
       }
     }
 
+    // 読み込み時に処理をキック
     window.addEventListener('DOMContentLoaded', () => {
       initMap();
       loadTyphoonData();
