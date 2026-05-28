@@ -2,17 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる台風</title>
+  <title>そらしる台風 - Live Board</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* 指定のフォントファイルをローカルから読み込み */
+    /* 🛠️ 指定のDINフォントをローカルからロード */
     @font-face {
       font-family: 'DIN 2014 DB';
       src: url('assets/typhoon/DIN 2014 DB.otf') format('opentype');
@@ -21,8 +21,16 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 1920px; height: 1080px; overflow: hidden; background: #111317; color: #ffffff; font-family: 'Noto Sans JP', sans-serif; }
+    html, body { 
+      width: 1920px; 
+      height: 1080px; 
+      overflow: hidden; 
+      background: #111317; 
+      color: #ffffff; 
+      font-family: 'Noto Sans JP', sans-serif; 
+    }
 
+    /* 16:9 画面サイズを完全にロック */
     .viewport-trimmer {
       width: 1920px;
       height: 1080px;
@@ -30,7 +38,7 @@
       overflow: hidden;
     }
 
-    /* 🗺️ マップコンテナ：背景として背面に配置 */
+    /* 🗺️ 背面：文字・境界線が一切ないクリアな地図レイヤー */
     #map {
       width: 1920px;
       height: 1080px;
@@ -41,100 +49,90 @@
       background: #111317;
     }
 
-    /* 前面の番組送出・UIレイヤー */
+    /* 🎬 前面：グラフィック・データ送出オーバーレイレイヤー */
     .ui-overlay-layer {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: 1920px;
+      height: 1080px;
       z-index: 2;
-      pointer-events: none; /* 地図の操作（ドラッグなど）を阻害しない */
+      pointer-events: none; /* 地図の自動フィット等を邪魔しない */
     }
 
-    /* 🖼️ 左上：タイトル画像 */
-    .title-logo-img {
+    /* 🖼️ 16:9 フルサイズ画像を完全にぴったり重ね合わせる共通スタイル */
+    .full-screen-asset {
       position: absolute;
-      top: 50px;
-      left: 60px;
-      height: 70px; /* 必要に応じてサイズ調整してください */
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
       object-fit: contain;
+      pointer-events: none;
     }
 
-    /* 🖼️ 右上：台風情報ステータスベース（template.pngを背景に配置） */
-    .typhoon-template-box {
+    /* 📊 データテキスト配置専用のコンテナ（右上の黒い座布団の位置に完全に合わせる） */
+    .typhoon-data-container {
       position: absolute;
-      top: 50px;
-      right: 60px;
-      width: 480px;
-      height: 320px;
-      background: url('assets/typhoon/template.png') no-repeat center/contain;
-      padding: 25px 35px;
-      display: none; /* データが読み込まれるまで非表示 */
+      /* 💡 template.png内の黒ボックスの位置（ズレている場合はここを微調整） */
+      top: 36px; 
+      right: 54px; 
+      width: 476px; 
+      height: 352px;
+      pointer-events: none;
+      display: none; /* データが正常に読み込まれるまで非表示 */
     }
 
-    /* テンプレート内のテキスト・数値配置のオーバーレイ調整 */
-    .template-header {
-      position: relative;
-      height: 70px;
-      display: flex;
-      align-items: baseline;
-    }
-
-    /* 指定のDIN 2014 DBフォントを適用する台風号数 */
-    .typhoon-num-din {
+    /* 🔢 台風の号数（DIN 2014 DBを適用） */
+    .typhoon-number-value {
+      position: absolute;
+      top: -2px;          /* 上下位置調整 */
+      left: 145px;        /* 「台風」と「号」の間のX座標 */
+      width: 110px;
+      text-align: center;
       font-family: 'DIN 2014 DB', sans-serif;
-      font-size: 80px;
-      font-weight: normal;
+      font-size: 78px;
       color: #ffffff;
       line-height: 1;
-      margin: 0 10px;
     }
 
-    .typhoon-name-jp {
+    /* 🏷️ アジア名（グレーの帯エリアの中央） */
+    .typhoon-name-value {
       position: absolute;
-      bottom: -15px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 94px;         /* グレーの帯の縦中心 */
+      left: 0;
+      width: 100%;
+      text-align: center;
       font-size: 24px;
       font-weight: 700;
-      color: #aaaaaa;
+      color: #ffffff;
       letter-spacing: 0.05em;
     }
 
-    /* 詳細パラメータセクション（位置・気圧・風速・進路） */
-    .data-table {
-      width: 100%;
-      margin-top: 30px;
-      border-collapse: collapse;
-    }
-
-    .data-table td {
-      padding: 8px 0;
+    /* 📋 パラメータ（位置・気圧・風速・進路）の共通スタイル値（右寄せ） */
+    .param-value {
+      position: absolute;
+      right: 30px;       /* 右端からの余白 */
       font-size: 26px;
       font-weight: 700;
-    }
-
-    .label-col {
-      width: 110px;
       color: #ffffff;
-      text-align: left;
-      letter-spacing: 0.1em;
-    }
-
-    .value-col {
       text-align: right;
-      color: #ffffff;
     }
 
-    /* パラメータ内の数値にもDINフォントを美しく適用 */
+    /* パラメータ内の「数値」にDINフォントを美しく適用 */
     .num-din {
       font-family: 'DIN 2014 DB', sans-serif;
       font-size: 32px;
       margin-right: 4px;
     }
 
-    /* エラー・未発生時の通知 */
+    /* 各行の高さ（Y座標）の指定（template.pngの行間隔にフィットさせます） */
+    #t-location { top: 144px; }
+    #t-pressure { top: 194px; }
+    #t-wind     { top: 244px; }
+    #t-direction{ top: 294px; }
+
+    /* エラー・未発表時のオーバーレイ */
     .info-overlay {
       position: absolute;
       top: 50%;
@@ -142,14 +140,14 @@
       transform: translate(-50%, -50%);
       font-size: 36px;
       font-weight: 700;
-      background: rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.85);
       padding: 20px 50px;
-      border-radius: 10px;
+      border-radius: 8px;
       z-index: 100;
       display: none;
     }
 
-    /* クレジット等の不要なUIを完全非表示 */
+    /* 不要なマップUIを根こそぎ非表示 */
     .leaflet-control-attribution, .leaflet-control-zoom {
       display: none !important;
     }
@@ -162,37 +160,20 @@
 
     <div class="ui-overlay-layer">
       
-      <img src="assets/typhoon/title.png" class="title-logo-img" alt="台風情報">
+      <img src="assets/typhoon/title.png" class="full-screen-asset" alt="Title Layer">
+      <img src="assets/typhoon/template.png" class="full-screen-asset" alt="Template Layer">
 
       <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
 
-      <div class="typhoon-template-box" id="telop-container">
+      <div class="typhoon-data-container" id="telop-container">
         
-        <div class="template-header">
-          <span style="font-size: 32px; font-weight: 900;">台風</span>
-          <span class="typhoon-num-din" id="t-num">--</span>
-          <span style="font-size: 32px; font-weight: 900;">号</span>
-          <div class="typhoon-name-jp" id="t-name">---</div>
-        </div>
+        <div class="typhoon-number-value" id="t-num">--</div>
+        <div class="typhoon-name-value" id="t-name">---</div>
         
-        <table class="data-table">
-          <tr>
-            <td class="label-col">位置</td>
-            <td class="value-col" id="t-location">---</td>
-          </tr>
-          <tr>
-            <td class="label-col">気圧</td>
-            <td class="value-col"><span class="num-din" id="t-pressure">---</span>hPa</td>
-          </tr>
-          <tr>
-            <td class="label-col">風速</td>
-            <td class="value-col"><span class="num-din" id="t-wind">---</span>m/s</td>
-          </tr>
-          <tr>
-            <td class="label-col">進路</td>
-            <td class="value-col" id="t-direction">---</td>
-          </tr>
-        </table>
+        <div class="param-value" id="t-location">---</div>
+        <div class="param-value" id="t-pressure"><span class="num-din" id="v-pressure">---</span>hPa</div>
+        <div class="param-value" id="t-wind"><span class="num-din" id="v-wind">---</span>m/s</div>
+        <div class="param-value" id="t-direction">---</div>
 
       </div>
     </div>
@@ -205,12 +186,18 @@
     let map;
 
     function initMap() {
+      // テレビの固定画面として最高精度を保つため、ドラッグやズームなどの手動操作を完全ロック
       map = L.map('map', {
         zoomControl: false,
-        attributionControl: false
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        touchZoom: false
       }).setView([25.0, 135.0], 5);
 
-      // 💡 文字（ラベル）や境界線が一切入っていない、完全無地の「CartoDB Dark Matter No Labels」を使用します！
+      // 💡 地名、都市名、道路、国境線が「一切入っていない」完全無地のダークマップ
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 10,
         minZoom: 3
@@ -221,7 +208,7 @@
       const infoMsg = document.getElementById("info-message");
 
       try {
-        console.log("そらしる台風：データ同期中...");
+        console.log("そらしる台風：最新データをシーク中...");
         const listResponse = await fetch(`${TYPHOON_LIST_URL}?t=${Date.now()}`);
         const typhoonList = await listResponse.json();
 
@@ -244,22 +231,23 @@
         const detailResponse = await fetch(detailUrl);
         const specifications = await detailResponse.json();
 
-        // テロップ情報および地図へのプロット反映
+        // テロップ描画 ＆ マッププロット
         parseAndRenderTelop(specifications);
         drawTyphoonOnMap(specifications);
 
       } catch (error) {
-        console.error("台風情報の同期に失敗しました:", error);
+        console.error("台風データの処理中にエラーが発生しました:", error);
         infoMsg.innerText = "台風データの取得エラーが発生しました。";
         infoMsg.style.display = "block";
       }
     }
 
-    // 各データを抽出してHTML側の各要素（DINフォントエリアなど）に流し込む
+    // 取得データをパースし、template.pngの空きスペースに超精密に流し込む
     function parseAndRenderTelop(dataArray) {
       const telopBox = document.getElementById("telop-container");
       if (!dataArray || dataArray.length < 2) return;
 
+      // 1. 基本情報の抽出
       const titleBlock = dataArray[0];
       let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
       if (rawNumber.length === 4) {
@@ -267,13 +255,14 @@
       }
       const typhoonName = (titleBlock.name && titleBlock.name.jp) ? titleBlock.name.jp : "無名";
 
+      // 2. 現在の実況ブロックを取得
       const analysisBlock = dataArray.find(b => b.part === "実況" || (b.part && b.part.jp === "実況")) || dataArray[1];
       
       const location = analysisBlock.location || "---";
       const pressure = analysisBlock.pressure || "---";
       const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) ? analysisBlock.maximumWind.sustained["m/s"] : "---";
 
-      // 進行方向・速度のパース
+      // 3. 進路（進行方向と速度）の整形
       let course = analysisBlock.course || "";
       let speedNote = (analysisBlock.speed && analysisBlock.speed.note && analysisBlock.speed.note.jp) ? analysisBlock.speed.note.jp : "";
       let speedKm = (analysisBlock.speed && analysisBlock.speed["km/h"]) ? `${analysisBlock.speed["km/h"]}km/h` : "";
@@ -283,18 +272,19 @@
         directionSpeed = `${course} ${speedNote || speedKm}`.trim();
       }
 
-      // 画面要素への差し替え
+      // 4. HTMLの各データエリアを書き換え
       document.getElementById("t-num").textContent = rawNumber;
       document.getElementById("t-name").textContent = typhoonName;
       document.getElementById("t-location").textContent = location;
-      document.getElementById("t-pressure").textContent = pressure;
-      document.getElementById("t-wind").textContent = maxWind;
+      document.getElementById("v-pressure").textContent = pressure;
+      document.getElementById("v-wind").textContent = maxWind;
       document.getElementById("t-direction").textContent = directionSpeed;
 
+      // 描画レイヤーをアクティブ化
       telopBox.style.display = "block";
     }
 
-    // マップ上に台風の軌跡・予報円をスタイリッシュにマッピング
+    // 地図上に台風の進路、予報円をスマートに描画
     function drawTyphoonOnMap(dataArray) {
       if (!dataArray || dataArray.length < 2) return;
 
@@ -310,7 +300,7 @@
         const isAnalysis = (block.part === "実況" || (block.part && block.part.jp === "実況"));
 
         if (isAnalysis) {
-          // 実況：現在地（赤いシャープなサークルマーカー）
+          // 【現在地マーク】（ソリッドな赤サークル）
           L.circleMarker([lat, lng], {
             radius: 7,
             color: '#ff3b30',
@@ -319,7 +309,7 @@
             weight: 2
           }).addTo(map);
 
-          // 暴風域・強風域（透過感のあるスマートな警告サークル）
+          // 【暴風域・強風域】
           if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
             const radiusKm = block.galeWarning[0].range.km;
             L.circle([lat, lng], {
@@ -331,7 +321,7 @@
             }).addTo(map);
           }
         } else {
-          // 予報円：未来の進路（白の点線サークル）
+          // 【予報円】（テレビのグラフィックライクな白破線サークル）
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
             const radiusKm = block.probabilityCircleRadius.km;
             
@@ -354,7 +344,7 @@
         }
       });
 
-      // 進路を結ぶ細めのスタイリッシュな白ライン
+      // 進路を結ぶ細身でシャープな予想ライン（白）
       if (latLngs.length > 1) {
         L.polyline(latLngs, {
           color: '#ffffff',
@@ -363,10 +353,11 @@
         }).addTo(map);
       }
 
-      // 右上の情報ボックスの裏に台風が隠れないよう、自動カメラフィッティング
+      // 右上の template.png の背後に台風情報が隠れないよう自動カメラ調整
       if (latLngs.length > 0) {
         const bounds = L.latLngBounds(latLngs);
-        map.fitBounds(bounds, { padding: [240, 240] });
+        // パディングを大きく取ることで、右上のテロップ枠を避けた絶妙な位置に自動フォーカスします
+        map.fitBounds(bounds, { padding: [260, 260] });
       }
     }
 
