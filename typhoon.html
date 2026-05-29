@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;700;900&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -83,7 +83,7 @@
       display: none; /* データが正常に読み込まれるまで非表示 */
     }
 
-    /* 🔢 台風の号数（★ここだけ唯一 DIN 2014 DB を適用） */
+    /* 🔢 台流の号数（★ここだけ唯一 DIN 2014 DB を適用） */
     .typhoon-number-value {
       position: absolute;
       top: 1px;          /* 上下位置調整 */
@@ -113,7 +113,7 @@
     .param-value {
       position: absolute;
       right: 30px;       /* 右端からの余白 */
-      font-size: 32px;   /* 💡 全体サイズを32pxに統一 */
+      font-size: 32px;   /* 全体サイズを32pxに統一 */
       font-weight: 700;
       color: #ffffff;
       text-align: right;
@@ -124,14 +124,11 @@
       margin-right: 4px;
     }
 
-
     /* 📍 各行の縦位置（Y座標）の個別微調整エリア */
-    /* template.pngの文字の高さに合わせて数値を変更してください */
     #t-location  { top: 138px; }  /* 位置の行の高さ */
     #t-pressure  { top: 190px; }  /* 気圧の行の高さ */
     #t-wind      { top: 240px; }  /* 風速の行の高さ */
     #t-direction { top: 293px; }  /* 進路の行の高さ */
-
 
     /* エラー・未発表時のオーバーレイ */
     .info-overlay {
@@ -280,6 +277,7 @@
       if (!dataArray || dataArray.length < 2) return;
 
       const latLngs = [];
+      const pointsForTube = []; // 進路の管（チューブ）計算用
 
       dataArray.forEach((block) => {
         if (block.part === "title" || !block.position || !block.position.deg) return;
@@ -290,7 +288,15 @@
 
         const isAnalysis = (block.part === "実況" || (block.part && block.part.jp === "実況"));
 
+        // チューブ描画用に各ポイントの予報円半径をストック（実況時は0からスタートして広げる）
+        let radiusKm = 0;
+        if (!isAnalysis && block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
+          radiusKm = block.probabilityCircleRadius.km;
+        }
+        pointsForTube.push({ lat, lng, radiusKm });
+
         if (isAnalysis) {
+          // 【現在地マーク】
           L.circleMarker([lat, lng], {
             radius: 7,
             color: '#ff3b30',
@@ -299,10 +305,11 @@
             weight: 2
           }).addTo(map);
 
+          // 【暴風域・強風域】
           if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
-            const radiusKm = block.galeWarning[0].range.km;
+            const radiusKmGale = block.galeWarning[0].range.km;
             L.circle([lat, lng], {
-              radius: radiusKm * 1000,
+              radius: radiusKmGale * 1000,
               color: '#ff9500',
               weight: 1.5,
               fillColor: '#ff9500',
@@ -310,9 +317,8 @@
             }).addTo(map);
           }
         } else {
+          // 【予報円】
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
-            const radiusKm = block.probabilityCircleRadius.km;
-            
             L.circle([lat, lng], {
               radius: radiusKm * 1000,
               color: '#ffffff',
@@ -332,6 +338,53 @@
         }
       });
 
+      // 🗺️ 【新機能】予報円の外側を結んで進路の管（チューブ）を描画
+      if (pointsForTube.length > 1) {
+        const leftSides = [];
+        const rightSides = [];
+
+        for (let i = 0; i < pointsForTube.length; i++) {
+          const p = pointsForTube[i];
+          let angle = 0;
+
+          // 進行方向の角度を算出
+          if (i === 0) {
+            const next = pointsForTube[1];
+            angle = Math.atan2(next.lng - p.lng, (next.lat - p.lat) * Math.cos((p.lat + next.lat) / 2 * Math.PI / 180));
+          } else if (i === pointsForTube.length - 1) {
+            const prev = pointsForTube[i - 1];
+            angle = Math.atan2(p.lng - prev.lng, (p.lat - prev.lat) * Math.cos((p.lat + prev.lat) / 2 * Math.PI / 180));
+          } else {
+            const prev = pointsForTube[i - 1];
+            const next = pointsForTube[i + 1];
+            angle = Math.atan2(next.lng - prev.lng, (next.lat - prev.lat) * Math.cos((prev.lat + next.lat) / 2 * Math.PI / 180));
+          }
+
+          const meters = p.radiusKm * 1000;
+          const R_e = 6378137; // 地球半径
+          const r_lat = (meters / R_e) * (180 / Math.PI);
+          const r_lng = (meters / (R_e * Math.cos(p.lat * Math.PI / 180))) * (180 / Math.PI);
+
+          // 進行方向に対して左右に90度垂直な境界点を計算
+          const rLat = p.lat + r_lat * Math.cos(angle + Math.PI / 2);
+          const rLng = p.lng + r_lng * Math.sin(angle + Math.PI / 2);
+          rightSides.push([rLat, rLng]);
+
+          const lLat = p.lat + r_lat * Math.cos(angle - Math.PI / 2);
+          const lLng = p.lng + r_lng * Math.sin(angle - Math.PI / 2);
+          leftSides.push([lLat, lLng]);
+        }
+
+        // 外側の境界線（白のシャープなラインでテレビ風に）
+        L.polyline(leftSides, { color: '#ffffff', weight: 2, opacity: 0.6 }).addTo(map);
+        L.polyline(rightSides, { color: '#ffffff', weight: 2, opacity: 0.6 }).addTo(map);
+
+        // 管の内部をほんのり透過ホワイトで塗りつぶし
+        const areaCoords = [...leftSides, ...([...rightSides].reverse())];
+        L.polygon(areaCoords, { color: 'transparent', fillColor: '#ffffff', fillOpacity: 0.04 }).addTo(map);
+      }
+
+      // 進路を結ぶ中心の予想ライン（白）
       if (latLngs.length > 1) {
         L.polyline(latLngs, {
           color: '#ffffff',
@@ -340,6 +393,7 @@
         }).addTo(map);
       }
 
+      // 描画範囲の自動フィット
       if (latLngs.length > 0) {
         const bounds = L.latLngBounds(latLngs);
         map.fitBounds(bounds, { padding: [260, 260] });
