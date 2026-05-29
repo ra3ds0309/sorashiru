@@ -1,4 +1,278 @@
-function drawTyphoonOnMap(dataArray) {
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>そらしる台風</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;700;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* 🛠️ 指定のDINフォントをローカルからロード */
+    @font-face {
+      font-family: 'DIN 2014 DB';
+      src: url('assets/typhoon/DIN 2014 DB.otf') format('opentype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { 
+      width: 1920px; 
+      height: 1080px; 
+      overflow: hidden; 
+      background: #111317; 
+      color: #ffffff; 
+      font-family: 'Noto Sans JP', sans-serif; 
+    }
+
+    /* 16:9 画面サイズを完全にロック */
+    .viewport-trimmer {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 🗺️ 背面：文字・境界線が一切ないクリアな地図レイヤー */
+    #map {
+      width: 1920px;
+      height: 1080px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      background: #111317;
+    }
+
+    /* 🎬 前面：グラフィック・データ送出オーバーレイレイヤー */
+    .ui-overlay-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      z-index: 2;
+      pointer-events: none; /* 地図の自動フィット等を邪魔しない */
+    }
+
+    /* 🖼️ 16:9 フルサイズ画像を完全にぴったり重ね合わせる共通スタイル */
+    .full-screen-asset {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1920px;
+      height: 1080px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    /* 📊 データテキスト配置専用のコンテナ（右上の黒い座布団の位置に完全に合わせる） */
+    .typhoon-data-container {
+      position: absolute;
+      top: 36px; 
+      right: 54px; 
+      width: 476px; 
+      height: 352px;
+      pointer-events: none;
+      display: none; /* データが正常に読み込まれるまで非表示 */
+    }
+
+    /* 🔢 台風の号数（★ここだけ唯一 DIN 2014 DB を適用） */
+    .typhoon-number-value {
+      position: absolute;
+      top: 1px;          
+      left: 126px;        
+      width: 90px;
+      text-align: center;
+      font-family: 'DIN 2014 DB', sans-serif;
+      font-size: 82px;
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    /* 🏷️ アジア名（グレーの帯エリアの中央） */
+    .typhoon-name-value {
+      position: absolute;
+      top: 84px;         
+      left: 0;
+      width: 100%;
+      text-align: center;
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+    }
+
+    /* 📋 パラメータ（位置・気圧・風速・進路）の共通スタイル値（右寄せ） */
+    .param-value {
+      position: absolute;
+      right: 30px;       
+      font-size: 32px;   
+      font-weight: 700;
+      color: #ffffff;
+      text-align: right;
+    }
+
+    /* パラメータ内の「数値」のスタイル設定 */
+    .param-num {
+      margin-right: 4px;
+    }
+
+    /* 📍 各行の縦位置（Y座標）の個別微調整エリア */
+    #t-location  { top: 138px; }  /* 位置の行の高さ */
+    #t-pressure  { top: 190px; }  /* 気圧の行の高さ */
+    #t-wind      { top: 240px; }  /* 風速の行の高さ */
+    #t-direction { top: 293px; }  /* 進路の行の高さ */
+
+    /* エラー・未発表時のオーバーレイ */
+    .info-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: 700;
+      background: rgba(0,0,0,0.85);
+      padding: 20px 50px;
+      border-radius: 8px;
+      z-index: 100;
+      display: none;
+    }
+
+    /* 不要なマップUIを根こそぎ非表示 */
+    .leaflet-control-attribution, .leaflet-control-zoom {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="viewport-trimmer">
+    <div id="map"></div>
+
+    <div class="ui-overlay-layer">
+      
+      <img src="assets/typhoon/title.png" class="full-screen-asset" alt="Title Layer">
+      <img src="assets/typhoon/template.png" class="full-screen-asset" alt="Template Layer">
+
+      <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
+
+      <div class="typhoon-data-container" id="telop-container">
+        
+        <div class="typhoon-number-value" id="t-num">--</div>
+        <div class="typhoon-name-value" id="t-name">---</div>
+        
+        <div class="param-value" id="t-location">---</div>
+        <div class="param-value" id="t-pressure"><span class="param-num" id="v-pressure">---</span>hPa</div>
+        <div class="param-value" id="t-wind"><span class="param-num" id="v-wind">---</span>m/s</div>
+        <div class="param-value" id="t-direction">---</div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TYPHOON_LIST_URL = "https://www.jma.go.jp/bosai/information/data/typhoon.json";
+    const TYPHOON_DETAIL_BASE = "https://www.jma.go.jp/bosai/typhoon/data/";
+
+    let map;
+
+    function initMap() {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        boxZoom: false,
+        touchZoom: false
+      }).setView([25.0, 135.0], 5);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+        maxZoom: 10,
+        minZoom: 3
+      }).addTo(map);
+    }
+
+    async function loadTyphoonData() {
+      const infoMsg = document.getElementById("info-message");
+
+      try {
+        console.log("そらしる台風：最新データをシーク中...");
+        const listResponse = await fetch(`${TYPHOON_LIST_URL}?t=${Date.now()}`);
+        const typhoonList = await listResponse.json();
+
+        if (!typhoonList || typhoonList.length === 0) {
+          infoMsg.innerText = "現在、発表中の台風情報はありません。";
+          infoMsg.style.display = "block";
+          return;
+        }
+
+        const currentTyphoon = typhoonList[0];
+        const eventId = currentTyphoon.eventId;
+        
+        if (!eventId) {
+          infoMsg.innerText = "台風データのイベントIDが見つかりません。";
+          infoMsg.style.display = "block";
+          return;
+        }
+
+        const detailUrl = `${TYPHOON_DETAIL_BASE}${eventId}/specifications.json?t=${Date.now()}`;
+        const detailResponse = await fetch(detailUrl);
+        const specifications = await detailResponse.json();
+
+        parseAndRenderTelop(specifications);
+        drawTyphoonOnMap(specifications);
+
+      } catch (error) {
+        console.error("台風データの処理中にエラーが発生しました:", error);
+        infoMsg.innerText = "台風データの取得エラーが発生しました。";
+        infoMsg.style.display = "block";
+      }
+    }
+
+    function parseAndRenderTelop(dataArray) {
+      const telopBox = document.getElementById("telop-container");
+      if (!dataArray || dataArray.length < 2) return;
+
+      const titleBlock = dataArray[0];
+      let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
+      if (rawNumber.length === 4) {
+        rawNumber = parseInt(rawNumber.substring(2, 4), 10);
+      }
+      const typhoonName = (titleBlock.name && titleBlock.name.jp) ? titleBlock.name.jp : "無名";
+
+      const analysisBlock = dataArray.find(b => b.part === "実況" || (b.part && b.part.jp === "実況")) || dataArray[1];
+      
+      const location = analysisBlock.location || "---";
+      const pressure = analysisBlock.pressure || "---";
+      const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) ? analysisBlock.maximumWind.sustained["m/s"] : "---";
+
+      let course = analysisBlock.course || "";
+      let speedNote = (analysisBlock.speed && analysisBlock.speed.note && analysisBlock.speed.note.jp) ? analysisBlock.speed.note.jp : "";
+      let speedKm = (analysisBlock.speed && analysisBlock.speed["km/h"]) ? `${analysisBlock.speed["km/h"]}km/h` : "";
+      
+      let directionSpeed = "---";
+      if (course || speedNote || speedKm) {
+        directionSpeed = `${course} ${speedNote || speedKm}`.trim();
+      }
+
+      document.getElementById("t-num").textContent = rawNumber;
+      document.getElementById("t-name").textContent = typhoonName;
+      document.getElementById("t-location").textContent = location;
+      document.getElementById("v-pressure").textContent = pressure;
+      document.getElementById("v-wind").textContent = maxWind;
+      document.getElementById("t-direction").textContent = directionSpeed;
+
+      telopBox.style.display = "block";
+    }
+
+    function drawTyphoonOnMap(dataArray) {
       if (!dataArray || dataArray.length < 2) return;
 
       const latLngs = [];
@@ -97,7 +371,7 @@ function drawTyphoonOnMap(dataArray) {
           // 【現在地マーク】
           L.circleMarker([p.lat, p.lng], { radius: 7, color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 1, weight: 2 }).addTo(map);
 
-          // 【実況：暴風域（オレンジ）】元のコードのまま
+          // 【実況：暴風域（オレンジ）】
           if (p.block.galeWarning && p.block.galeWarning[0] && p.block.galeWarning[0].range) {
             L.circle([p.lat, p.lng], { radius: p.block.galeWarning[0].range.km * 1000, color: '#ff9500', weight: 1.5, fillColor: '#ff9500', fillOpacity: 0.12 }).addTo(map);
           }
@@ -124,3 +398,11 @@ function drawTyphoonOnMap(dataArray) {
         map.fitBounds(L.latLngBounds(latLngs), { padding: [260, 260] });
       }
     }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadTyphoonData();
+    });
+  </script>
+</body>
+</html>
