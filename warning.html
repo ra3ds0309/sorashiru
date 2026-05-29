@@ -6,11 +6,10 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500;700;900&family=Roboto:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700;900&family=Roboto:wght@700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  
   <script src="https://unpkg.com/topojson-client@3"></script>
 
   <style>
@@ -19,31 +18,36 @@
       width: 1920px;
       height: 1080px;
       overflow: hidden;
-      background: #111317; /* そらしるダーク */
+      background: #111317;
       color: #ffffff;
       font-family: 'Noto Sans JP', sans-serif;
     }
 
+    /* 💡 16:9 全面タイトル背景画像の設定 */
     .viewport {
       width: 1920px;
       height: 1080px;
       position: relative;
       overflow: hidden;
+      background-image: url('assets/warning/title.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
     }
 
-    /* 地図エリア */
+    /* 💡 地図を完全に透明にして背景の上に重ねる */
     #map {
       width: 1920px;
       height: 1080px;
       position: absolute;
       top: 0;
       left: 0;
-      background: #111317;
+      background: transparent; 
       z-index: 1;
     }
 
-    /* 画面被せのUIレイヤー */
-    .ui-layer {
+    /* UIオーバーレイレイヤー */
+    .ui-overlay {
       position: absolute;
       top: 0;
       left: 0;
@@ -51,131 +55,86 @@
       height: 1080px;
       z-index: 2;
       pointer-events: none;
-      padding: 50px 60px;
+      padding: 60px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }
 
-    /* 左上：メインタイトル */
-    .header-block {
-      background: linear-gradient(90deg, rgba(17,19,23,0.95) 0%, rgba(17,19,23,0.8) 70%, rgba(17,19,23,0) 100%);
-      padding: 20px 40px 20px 20px;
-      border-left: 6px solid #38bdf8;
-      border-radius: 0 8px 8px 0;
-      align-self: flex-start;
-      backdrop-filter: blur(5px);
-    }
-    .main-title {
-      font-size: 42px;
-      font-weight: 900;
-      letter-spacing: 0.05em;
-    }
-    .sub-title {
-      font-size: 24px;
-      color: rgba(255, 255, 255, 0.6);
-      margin-top: 4px;
-      font-weight: 500;
-    }
-
-    /* 右側：状況解説サイドテロップパネル */
+    /* 右側サイドパネル */
     .side-panel {
       position: absolute;
-      top: 50px;
+      top: 60px;
       right: 60px;
-      width: 440px;
-      background: rgba(17, 19, 23, 0.85);
+      width: 460px;
+      background: rgba(11, 13, 23, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
       padding: 30px;
-      backdrop-filter: blur(10px);
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
+      backdrop-filter: blur(12px);
     }
     .panel-title {
-      font-size: 24px;
-      font-weight: 700;
+      font-size: 26px;
+      font-weight: 900;
       color: #38bdf8;
       border-bottom: 2px solid rgba(56, 189, 248, 0.2);
-      padding-bottom: 10px;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
     }
     .info-list {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
+      max-height: 800px;
+      overflow: hidden;
     }
     .info-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       background: rgba(255,255,255,0.03);
-      padding: 12px 16px;
-      border-radius: 6px;
-      border-left: 4px solid #64748b;
-    }
-    .info-item.active-l4 { border-left-color: #c084fc; background: rgba(192, 132, 252, 0.05); }
-    .info-item.active-l3 { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.05); }
-    
-    .info-region { font-size: 22px; font-weight: 700; }
-    .info-status { font-size: 18px; font-weight: 700; padding: 4px 10px; border-radius: 4px; }
-    
-    .bg-l4 { background: #c084fc; color: #1e1b4b; }
-    .bg-l3 { background: #ef4444; color: #ffffff; }
-
-    /* 左下：新しい防災警戒レベル凡例（Legend） */
-    .legend-panel {
-      background: rgba(17, 19, 23, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 14px 18px;
       border-radius: 8px;
-      padding: 16px 24px;
-      align-self: flex-start;
-      backdrop-filter: blur(5px);
+      border-left: 5px solid #64748b;
     }
-    .legend-title {
-      font-size: 16px;
-      color: rgba(255,255,255,0.5);
-      margin-bottom: 10px;
-      font-weight: 700;
-    }
-    .legend-items {
-      display: flex;
-      gap: 12px;
-    }
-    .legend-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .color-chip {
-      width: 24px;
-      height: 24px;
+    .info-item.lvl-5 { border-left-color: #f472b6; background: rgba(112, 26, 117, 0.2); }
+    .info-item.lvl-4 { border-left-color: #c084fc; background: rgba(192, 132, 252, 0.1); }
+    .info-item.lvl-3 { border-left-color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+
+    .info-region { font-size: 22px; font-weight: 700; }
+    .info-status { 
+      font-size: 16px; 
+      font-weight: 900; 
+      padding: 6px 12px; 
       border-radius: 4px;
     }
     
-    /* リニューアルカラー定義 */
+    .bg-lvl5 { background: linear-gradient(135deg, #4c0519, #701a75); color: #ffffff; border: 1px solid #f472b6; }
+    .bg-lvl4 { background: #c084fc; color: #1e1b4b; }
+    .bg-lvl3 { background: #ef4444; color: #ffffff; }
+
+    /* 左下凡例 */
+    .legend-panel {
+      background: rgba(11, 13, 23, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px 24px;
+      align-self: flex-start;
+      backdrop-filter: blur(8px);
+    }
+    .legend-title { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 8px; font-weight: 700; }
+    .legend-items { display: flex; gap: 14px; }
+    .legend-box { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
+    .color-chip { width: 20px; height: 20px; border-radius: 4px; }
+    
     .c-lvl5 { background: #701a75; border: 1px solid #f472b6; }
     .c-lvl4 { background: #c084fc; }
     .c-lvl3 { background: #ef4444; }
     .c-lvl2 { background: #eab308; }
     .c-lvl1 { background: #64748b; }
 
-    .copyright-tag {
-      position: absolute;
-      bottom: 25px;
-      right: 60px;
-      color: rgba(255, 255, 255, 0.1);
-      font-family: 'Roboto', sans-serif;
-      font-size: 20px;
-      letter-spacing: 0.05em;
-    }
-
-    /* Leafletの標準パーツを非表示 */
-    .leaflet-control-attribution, .leaflet-control-zoom {
-      display: none !important;
-    }
+    /* Leaflet標準UI非表示 */
+    .leaflet-control-attribution, .leaflet-control-zoom { display: none !important; }
   </style>
 </head>
 <body>
@@ -183,20 +142,17 @@
   <div class="viewport">
     <div id="map"></div>
 
-    <div class="ui-layer">
-      <div class="header-block">
-        <div class="main-title">大雨・河川氾濫に関する情報</div>
-        <div class="sub-title" id="report-time">2026年5月29日 22時20分 現在</div>
-      </div>
+    <div class="ui-overlay">
+      <div></div>
 
       <div class="side-panel">
-        <div class="panel-title">主要な発表地域</div>
+        <div class="panel-title">現在の警戒レベル発表地域</div>
         <div class="info-list" id="side-info-list">
           </div>
       </div>
 
       <div class="legend-panel">
-        <div class="legend-title">防災気象情報警戒レベル</div>
+        <div class="legend-title">新基準 警戒レベル</div>
         <div class="legend-items">
           <div class="legend-box"><div class="color-chip c-lvl5"></div><span>レベル5(特別)</span></div>
           <div class="legend-box"><div class="color-chip c-lvl4"></div><span>レベル4(危険)</span></div>
@@ -205,128 +161,202 @@
           <div class="legend-box"><div class="color-chip c-lvl1"></div><span>レベル1(早期)</span></div>
         </div>
       </div>
-
-      <div class="copyright-tag">© Sorashiru</div>
     </div>
   </div>
 
   <script>
-    // 💡 新規警戒レベルカラーマップ
+    // 新リニューアル警戒レベルカラー
     const LEVEL_COLORS = {
-      5: '#701a75', // レベル5 (特別警報級)
-      4: '#c084fc', // レベル4 (危険警報)
-      3: '#ef4444', // レベル3 (警報)
-      2: '#eab308', // レベル2 (注意報)
-      1: '#64748b', // レベル1 (早期注意情報)
-      0: '#1e293b'  // 発表なし (うっすらグレーの陸地)
-    };
-
-    // 💡 読み込み後に色を塗るデモ用のアクティブな警報データ
-    // ※実際の気象庁JSONのコードや地域名("name"など)と紐付けを行います。
-    const currentWarningStatus = {
-      "愛知県東部": { level: 4, label: "大雨危険" },
-      "愛知県西部": { level: 3, label: "大雨警報" },
-      "静岡県西部": { level: 4, label: "大雨危険" },
-      "三重県南部": { level: 3, label: "大雨警報" }
+      5: '#701a75',
+      4: '#c084fc',
+      3: '#ef4444',
+      2: '#eab308',
+      1: '#64748b',
+      0: 'rgba(255, 255, 255, 0.05)' // 発表なしの地域は背景を活かすため極めて薄くシースルーに
     };
 
     let map;
+    let codeMap = {};        // 警報コード -> { level, name }
+    let areaStatusMap = {};   // 配信地域コード/名 -> 最大警戒レベル情報
 
-    function initMap() {
-      // 放送画面用固定地図（ズームやドラッグを固定）
-      map = L.map('map', {
-        zoomControl: false,
-        attributionControl: false,
-        dragging: false,
-        scrollWheelZoom: false,
-        doubleClickZoom: false,
-        boxZoom: false,
-        touchZoom: false
-      }).setView([35.0, 137.2], 7.5); // 東海地方中心に初期表示（後ほどfitBoundsで自動調整可能）
+    // 1. 警戒レベル等対応コード表 (code.txt) の読み込み・パース
+    async function loadCodeTable() {
+      try {
+        const response = await fetch('assets/warning/code.txt');
+        const text = await response.text();
+        const lines = text.split('\n');
+        
+        lines.forEach(line => {
+          if (!line.trim()) return;
+          // カンマ、タブ、スペースのいずれかで区切られている場合に対応
+          const parts = line.split(/[\t,]+/);
+          if (parts.length >= 3) {
+            const code = parts[0].trim();
+            const level = parseInt(parts[1].trim(), 10);
+            const name = parts[2].trim();
+            codeMap[code] = { level, name };
+          }
+        });
+        console.log("Code Table Loaded:", codeMap);
+      } catch (e) {
+        console.error("code.txt の読み込みに失敗しました:", e);
+      }
     }
 
-    async function loadTopoJSONMaps() {
+    // 2. 47都道府県のJSONリスト (list.txt) からリアルタイム情報を集約
+    async function loadWarningData() {
       try {
-        // 1. 一次細分区域等のTopoJSONをロード
+        const response = await fetch('assets/warning/list.txt');
+        const text = await response.text();
+        const jsonPaths = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+
+        // すべてのJSONファイルを並列で取得
+        const jsonPromises = jsonPaths.map(path => fetch(path).then(res => res.json()));
+        const allData = await Promise.all(jsonPromises);
+
+        // 各気象データのパース
+        allData.forEach(provData => {
+          // ※気象庁や提供データの構造（JMA形式等）に依存します。以下は一般的な気象庁Warning JSONの解析例
+          const reports = Array.isArray(provData) ? provData : [provData];
+          
+          reports.forEach(report => {
+            if (!report.areaTypes) return;
+            // 一次細分区域などの階層を走査
+            report.areaTypes.forEach(type => {
+              type.areas.forEach(area => {
+                const areaCode = area.code;
+                const areaName = area.name; // 地図のプロパティと一致させるための名前
+                
+                let maxLevel = 0;
+                let activeWarningName = "";
+
+                if (area.warnings) {
+                  area.warnings.forEach(warn => {
+                    // 発表中または継続中のものを対象にする
+                    if (warn.status === "発表中" || warn.status === "継続") {
+                      const meta = codeMap[warn.code];
+                      if (meta && meta.level > maxLevel) {
+                        maxLevel = meta.level;
+                        activeWarningName = meta.name;
+                      }
+                    }
+                  });
+                }
+
+                // すでにデータがある場合は、より高いレベルを保持
+                const targetKey = areaName || areaCode;
+                if (!areaStatusMap[targetKey] || areaStatusMap[targetKey].level < maxLevel) {
+                  areaStatusMap[targetKey] = {
+                    level: maxLevel,
+                    name: activeWarningName,
+                    code: areaCode
+                  };
+                }
+              });
+            });
+          });
+        });
+        console.log("Warning Status Aggregated:", areaStatusMap);
+      } catch (e) {
+        console.error("list.txt または各気象JSONの取得・解析に失敗しました:", e);
+      }
+    }
+
+    // 3. 地図の初期化と描画
+    async function initAndRenderMap() {
+      // 放送画面用に操作を完全固定
+      map = L.map('map', {
+        zoomControl: false, attributionControl: false, dragging: false,
+        scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false
+      }).setView([36.5, 137.5], 5.2); // 日本全体を収める初期位置
+
+      try {
+        // 一次細分区域等 TopoJSON
         const resSubDiv = await fetch('assets/map/一次細分区域等.json');
         const topoSubDiv = await resSubDiv.json();
-        
-        // TopoJSONをGeoJSONに変換 (最初のオブジェクトキーを自動検出)
         const keySubDiv = Object.keys(topoSubDiv.objects)[0];
         const geoSubDiv = topojson.feature(topoSubDiv, topoSubDiv.objects[keySubDiv]);
 
-        // 2. 都道府県等(境界線用)のTopoJSONをロード
+        // 都道府県等 TopoJSON (輪郭線用)
         const resPref = await fetch('assets/map/地震情報／都道府県等.json');
         const topoPref = await resPref.json();
         const keyPref = Object.keys(topoPref.objects)[0];
         const geoPref = topojson.feature(topoPref, topoPref.objects[keyPref]);
 
-        // --- ① 一次細分区域等の描画（ここに警報・注意報の色を塗る） ---
+        // 一次細分区域にリアルタイムレベルの色を適用
         const subDivLayer = L.geoJSON(geoSubDiv, {
           style: function(feature) {
-            // JSON内のプロパティ名(通常はnameやcode)を取得
-            const areaName = feature.properties.name || feature.properties.name_ja || "";
-            const status = currentWarningStatus[areaName] || { level: 0 };
+            const name = feature.properties.name || feature.properties.name_ja || "";
+            const code = feature.properties.code || "";
+            
+            // 名前またはコードで現在の状態を検索
+            const status = areaStatusMap[name] || areaStatusMap[code] || { level: 0 };
             
             return {
               fillColor: LEVEL_COLORS[status.level],
-              fillOpacity: status.level > 0 ? 0.85 : 0.4, // 警告地域は濃く、平常地域はうっすら
-              color: '#2d3748', // 一次細分の境界は暗めのグレー
-              weight: 1,
-              opacity: 0.5
+              fillOpacity: status.level > 0 ? 0.8 : 0.2, // 警報地域はくっきり、平穏な地域は透過してtitle.pngを見せる
+              color: 'rgba(255, 255, 255, 0.1)',
+              weight: 1
             };
           }
         }).addTo(map);
 
-        // --- ② 都道府県等境界線の描画（地図の輪郭をくっきりさせる） ---
+        // 都道府県の県境をくっきり白線で重ねる
         L.geoJSON(geoPref, {
           style: function() {
             return {
-              fillColor: 'transparent', // 塗りつぶさない
-              color: '#ffffff',         // 県境は白くくっきり
+              fillColor: 'transparent',
+              color: '#ffffff',
               weight: 1.5,
-              opacity: 0.4,
-              pointerEvents: 'none'     // マウスイベントを透過
+              opacity: 0.35,
+              pointerEvents: 'none'
             };
           }
         }).addTo(map);
 
-        // 全体の位置自動調整 (愛知県周辺の警告地域にフォーカスさせる等)
-        // ※日本全体にする場合は map.setView([36.5, 137.5], 5); 等で固定しても綺麗です。
-        map.fitBounds(subDivLayer.getBounds(), {
-          paddingTopLeft: [100, 100],
-          paddingBottomRight: [500, 100] // 右側のサイドパネルを避けて配置
-        });
+        // 画面の自動構図調整（必要に応じて特定の地方にズームさせることも可能）
+        // map.fitBounds(subDivLayer.getBounds());
 
-        // 右側のサイドテロップリストを生成
+        // 右側のリストパネルを構築
         renderSidePanel();
 
       } catch (e) {
-        console.error("TopoJSONの読み込みまたは描画に失敗しました:", e);
+        console.error("地図データの読み込みまたはレンダリングに失敗しました:", e);
       }
     }
 
+    // 右側サイドリストの更新 (レベル3以上の重要な地域を表示)
     function renderSidePanel() {
-      const listContainer = document.getElementById("side-info-list");
-      listContainer.innerHTML = "";
+      const container = document.getElementById("side-info-list");
+      container.innerHTML = "";
 
-      Object.keys(currentWarningStatus).forEach(region => {
-        const data = currentWarningStatus[region];
-        if (data.level >= 3) { // 警報(レベル3)以上の重要地域をピックアップ
-          const item = document.createElement("div");
-          item.className = `info-item active-l${data.level}`;
-          item.innerHTML = `
-            <span class="info-region">${region}</span>
-            <span class="info-status bg-l${data.level}">レベル${data.level} ${data.label}</span>
-          `;
-          listContainer.appendChild(item);
-        }
+      // レベルが高い順にソートして表示
+      const sortedAreas = Object.keys(areaStatusMap)
+        .map(key => ({ region: key, ...areaStatusMap[key] }))
+        .filter(item => item.level >= 3)
+        .sort((a, b) => b.level - a.level);
+
+      if (sortedAreas.length === 0) {
+        container.innerHTML = `<div style="color:rgba(255,255,255,0.4); font-size:18px;">現在、レベル3以上の警報は発表されていません。</div>`;
+        return;
+      }
+
+      sortedAreas.forEach(item => {
+        const div = document.createElement("div");
+        div.className = `info-item lvl-${item.level}`;
+        div.innerHTML = `
+          <span class="info-region">${item.region}</span>
+          <span class="info-status bg-lvl${item.level}">レベル${item.level} ${item.name}</span>
+        `;
+        container.appendChild(div);
       });
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      initMap();
-      loadTopoJSONMaps();
+    // メイン起動フロー
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadCodeTable();     // 1. コードマップ作成
+      await loadWarningData();   // 2. リアルタイムデータ集約
+      await initAndRenderMap();  // 3. 地図描画
     });
   </script>
 </body>
