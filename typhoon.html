@@ -157,8 +157,8 @@
       display: none;
     }
 
-    /* 💡 Leaflet標準の白い四角背景と枠線を完全に消去する */
-    .leaflet-div-icon {
+    /* 💡 文字表示コンテナの枠線や背景を完全に透明化 */
+    .map-time-icon-container {
       background: transparent !important;
       border: none !important;
     }
@@ -171,6 +171,7 @@
       font-weight: 700;
       letter-spacing: 0.02em;
       white-space: nowrap;
+      line-height: 30px; /* 縦方向の中央揃え */
       text-shadow: 
         -2px -2px 0 #111317,  
          2px -2px 0 #111317,
@@ -279,16 +280,9 @@
       if (titleBlock.issue && titleBlock.issue.JST) {
         try {
           const issueDate = new Date(titleBlock.issue.JST);
-          const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
-            timeZone: 'Asia/Tokyo',
-            day: 'numeric',
-            hour: 'numeric',
-            hour12: false
-          });
-          const parts = jstFormatter.formatToParts(issueDate);
-          const dVal = parts.find(p => p.type === 'day').value;
-          const hVal = parts.find(p => p.type === 'hour').value;
-          document.getElementById("t-report-time").textContent = `${dVal}日 ${hVal}時発表`;
+          const dayVal = issueDate.getDate();
+          const hourVal = issueDate.getHours();
+          document.getElementById("t-report-time").textContent = `${dayVal}日 ${hourVal}時発表`;
         } catch (e) {
           console.error("発表時間のパースに失敗しました:", e);
         }
@@ -410,32 +404,28 @@
       }
 
       pointsForTube.forEach((p) => {
-        // 💡 実況(dateTime)と予報(validTime)の両方のキーから安全に時間を取得するよう修正
-        const timeStr = p.block.validTime || p.block.dateTime;
+        // 💡 実況(dateTime)と予報(validTime)から安全に時間を取得
+        const timeStr = p.block.dateTime || p.block.validTime;
         if (p.block && timeStr) {
           try {
             const d = new Date(timeStr);
-            const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
-              timeZone: 'Asia/Tokyo',
-              day: 'numeric',
-              weekday: 'short',
-              hour: 'numeric',
-              hour12: false
-            });
-            const parts = jstFormatter.formatToParts(d);
-            const dVal = parts.find(pt => pt.type === 'day').value;
-            const wVal = parts.find(pt => pt.type === 'weekday').value;
-            const hVal = parts.find(pt => pt.type === 'hour').value;
-            const timeText = `${dVal}日(${wVal})${hVal}時`;
+            if (!isNaN(d.getTime())) {
+              const dayVal = d.getDate();
+              const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+              const weekVal = weekdays[d.getDay()];
+              const hourVal = d.getHours();
+              const timeText = `${dayVal}日(${weekVal})${hourVal}時`;
 
-            const timeIcon = L.divIcon({
-              className: 'map-time-label',
-              html: timeText,
-              iconSize: null, // iconSizeをnullにしてテキスト幅を維持させる
-              iconAnchor: [-24, 10]
-            });
+              // 💡 表示領域を[200, 30]で固定して文字が潰れるのを防止
+              const timeIcon = L.divIcon({
+                className: 'map-time-icon-container',
+                html: `<div class="map-time-label">${timeText}</div>`,
+                iconSize: [200, 30],
+                iconAnchor: [-15, 15] // マーカーの右側に綺麗に配置されるよう調整
+              });
 
-            L.marker([p.lat, p.lng], { icon: timeIcon, interactive: false }).addTo(map);
+              L.marker([p.lat, p.lng], { icon: timeIcon, interactive: false }).addTo(map);
+            }
           } catch (e) {
             console.error("地図上への日時テキスト描画に失敗しました:", e);
           }
@@ -466,11 +456,11 @@
       }
 
       if (latLngs.length > 0) {
-        // 💡 ズームの最大値を制限し、かつ右上のテロップ(幅476px)を避けるための非対称パディングにチューニング
+        // 💡 拡大しすぎを防止(maxZoom: 6)し、右上のテロップ枠を避ける非対称パディングを設定
         map.fitBounds(L.latLngBounds(latLngs), {
-          paddingTopLeft: [150, 150],       // 左上の余白
-          paddingBottomRight: [560, 200],   // 右側を大きく空けてテロップ裏への回り込みを防ぐ
-          maxZoom: 6                         // 拡大しすぎを防止（適度な引きの構図にする）
+          paddingTopLeft: [150, 150],
+          paddingBottomRight: [560, 200], // 右側を広く空けてテロップ裏への回り込みを防ぐ
+          maxZoom: 6
         });
       }
     }
