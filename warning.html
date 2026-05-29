@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>そらしる警報注意報</title>
+  <title>そらしる警報注意報 - 全国版</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,19 +106,18 @@
   </div>
 
   <script>
-    // 警戒レベルカラーマップ
     const LEVEL_COLORS = {
-      5: '#701a75', // レベル5：特別警報
-      4: '#c084fc', // レベル4：危険警報
-      3: '#ef4444', // レベル3：警報
-      2: '#eab308', // レベル2：注意報（今回の濃霧注意報はここになります）
-      1: '#64748b', // レベル1：早期注意情報
-      0: 'rgba(255, 255, 255, 0.05)' // 発表なし（地図の陸地をうっすら透過させてtitle.pngを見せる）
+      5: '#701a75', 
+      4: '#c084fc', 
+      3: '#ef4444', 
+      2: '#eab308', 
+      1: '#64748b', 
+      0: 'rgba(255, 255, 255, 0.05)' 
     };
 
     let map;
-    let codeMap = {};        // 警報コード -> { level, name }
-    let areaStatusMap = {};   // エリアコード -> 最大警戒レベル情報
+    let codeMap = {};        
+    let areaStatusMap = {};   
 
     // 1. code.txt の読み込みとパース
     async function loadCodeTable() {
@@ -155,20 +154,17 @@
         allData.forEach(provData => {
           if (!provData.areaTypes) return;
           
-          // 💡 送っていただいた気象庁のJSONデータ構造を正確に解析します
           provData.areaTypes.forEach(type => {
             if (!type.areas) return;
             
             type.areas.forEach(area => {
-              const areaCode = area.code; // 例: "230010" (愛知県東部) や "2320100" (豊橋市)
+              const areaCode = area.code; 
               let maxLevel = 0;
               let activeWarningName = "";
 
               if (area.warnings) {
                 area.warnings.forEach(warn => {
-                  // statusが「発表」または「継続」のものを対象とする
                   if (warn.status === "発表" || warn.status === "継続") {
-                    // code.txtの定義を参照（万が一未定義の場合は注意報レベル2をデフォルトに）
                     const meta = codeMap[warn.code] || { level: 2, name: "注意報" };
                     if (meta.level > maxLevel) {
                       maxLevel = meta.level;
@@ -178,7 +174,6 @@
                 });
               }
 
-              // すでに他のデータで高いレベルが登録されていない場合のみ上書き
               if (maxLevel > 0) {
                 if (!areaStatusMap[areaCode] || areaStatusMap[areaCode].level < maxLevel) {
                   areaStatusMap[areaCode] = {
@@ -199,11 +194,11 @@
     // 3. 地図の初期化とTopoJSONマッピング
     async function initAndRenderMap() {
       // 画面を完全に固定（配信画面用）
-      // 💡 初期位置を愛知県周辺にクローズアップさせています
+      // 💡 座標 [36.5, 138.0]、ズームレベル 5.3 に変更し、日本全体が美しく収まるようにしました
       map = L.map('map', {
         zoomControl: false, attributionControl: false, dragging: false,
         scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, touchZoom: false
-      }).setView([35.05, 137.15], 8.8); 
+      }).setView([36.5, 138.0], 5.3); 
 
       try {
         // 一次細分区域等（発表単位）のTopoJSON
@@ -218,17 +213,16 @@
         const keyPref = Object.keys(topoPref.objects)[0];
         const geoPref = topojson.feature(topoPref, topoPref.objects[keyPref]);
 
-        // 一次細分区域レイヤーの描画（集約したareaCodeで色塗り）
-        const subDivLayer = L.geoJSON(geoSubDiv, {
+        // 一次細分区域レイヤーの描画
+        L.geoJSON(geoSubDiv, {
           style: function(feature) {
-            // TopoJSON内のプロパティからコードを取得（code または市町村コードなど）
             const code = feature.properties.code || feature.properties.jmaCode || feature.properties.code_ja || "";
             const status = areaStatusMap[code] || { level: 0 };
             
             return {
               fillColor: LEVEL_COLORS[status.level],
-              fillOpacity: status.level > 0 ? 0.85 : 0.1, // 注意報以上は濃く、発表なしは背景を透かす
-              color: 'rgba(255, 255, 255, 0.15)',        // 地域ごとの細分境界線
+              fillOpacity: status.level > 0 ? 0.85 : 0.1, 
+              color: 'rgba(255, 255, 255, 0.15)',        
               weight: 1.2
             };
           }
@@ -247,9 +241,6 @@
           }
         }).addTo(map);
 
-        // 💡 全国すべての発表地域を自動で画面に収めたい場合は、以下のコメントアウトを解除してください
-        // map.fitBounds(subDivLayer.getBounds(), { padding: [50, 50] });
-
       } catch (e) {
         console.error("地図レンダリングに失敗しました:", e);
       }
@@ -257,9 +248,9 @@
 
     // メインフロー起動
     window.addEventListener('DOMContentLoaded', async () => {
-      await loadCodeTable();     // 1. コードマップの生成
-      await loadWarningData();   // 2. リアルタイムJSONの解析
-      await initAndRenderMap();  // 3. 地図へのマッピングと表示
+      await loadCodeTable();     
+      await loadWarningData();   
+      await initAndRenderMap();  
     });
   </script>
 </body>
