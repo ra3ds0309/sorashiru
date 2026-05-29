@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@600;700;900&family=Roboto:wght@400&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -66,7 +66,6 @@
       pointer-events: none;
     }
 
-    /* ⏱️ 天気予報と同じデザイン・配置の発表時刻タグ */
     .report-time-tag {
       position: absolute;
       top: 125px;
@@ -77,6 +76,19 @@
       font-weight: 500;
       letter-spacing: 0.05em;
       text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      z-index: 4;
+    }
+
+    /* © 右下に配置したコピーライトスタイル */
+    .copyright-tag {
+      position: absolute;
+      bottom: 30px; /* 💡 topからbottomに変更して右下に設定 */
+      right: 40px;
+      color: rgba(255, 255, 255, 0.1);
+      font-family: 'Roboto', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 0.03em;
       z-index: 4;
     }
 
@@ -162,6 +174,8 @@
 
       <div class="report-time-tag" id="t-report-time"></div>
 
+      <div class="copyright-tag">© Sorashiru</div>
+
       <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
 
       <div class="typhoon-data-container" id="telop-container">
@@ -241,7 +255,6 @@
 
       const titleBlock = dataArray[0];
       
-      // ⏱️ 発表時刻（issue）から日（d）と時（h）を取得して反映
       if (titleBlock.issue && titleBlock.issue.JST) {
         const issueDate = new Date(titleBlock.issue.JST);
         const day = issueDate.getDate();
