@@ -16,7 +16,7 @@ async function generateGeminiExplanation(typhoonList, specifications) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
   const prompt = `以下の気象庁の台風情報JSONデータ（全体概要と詳細仕様）を読み込み、現在の台風の状況（位置、現在の勢力など）と今後の進路予想について、一般の人向けに分かりやすく3行程度の短い簡単な概要解説を日本語で作成してください。
-解説以外の挨拶、前置き、余計な文、装飾（Markdownの太字 ** など）は一切含めず、解説の本文のみをそのまま出力してください。
+解説以外の挨拶、前置き、余計な文、装飾（Markdownの太字 ** など）は一切含めず、解説的本文のみをそのまま出力してください。
 
 【台風データ1（typhoon.json）】
 ${JSON.stringify(typhoonList)}
@@ -84,8 +84,18 @@ ${JSON.stringify(specifications)}`;
   let announceTimeStr = "---";
   if (titleBlock.issue && titleBlock.issue.JST) {
     const issueDate = new Date(titleBlock.issue.JST);
-    const day = issueDate.getDate();
-    const hours = issueDate.getHours();
+    
+    // 💡 サーバー（UTC環境）でも確実に日本標準時（JST）で「日」と「時」を取得する修正
+    const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      day: 'numeric',
+      hour: 'numeric',
+      hour12: false
+    });
+    const parts = jstFormatter.formatToParts(issueDate);
+    const day = parts.find(p => p.type === 'day').value;
+    const hours = parts.find(p => p.type === 'hour').value;
+    
     announceTimeStr = `${day}日${hours}時`;
   }
 
