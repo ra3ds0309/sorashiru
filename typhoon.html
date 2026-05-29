@@ -103,7 +103,7 @@
 
     .typhoon-number-value {
       position: absolute;
-      top: 1px;          
+      top: 1px;                
       left: 126px;        
       width: 90px;
       text-align: center;
@@ -157,14 +157,12 @@
       display: none;
     }
 
-    /* 💡 文字表示コンテナの枠線を透明化し、はみ出し(overflow)を絶対に許可する */
     .map-time-icon-container {
       background: transparent !important;
       border: none !important;
       overflow: visible !important;
     }
 
-    /* 💡 地図上の各円の右側に表示される日時テキスト */
     .map-time-label {
       color: #ffffff;
       font-family: 'Noto Sans JP', sans-serif;
@@ -172,8 +170,8 @@
       font-weight: 700;
       letter-spacing: 0.02em;
       white-space: nowrap;
-      line-height: 30px; /* 縦方向の中央揃え */
-      padding-left: 22px; /* ✨ 円の中心から右側に22px離した位置に確実に文字を押し出す */
+      line-height: 30px; 
+      padding-left: 22px; 
       text-shadow: 
         -2px -2px 0 #111317,  
          2px -2px 0 #111317,
@@ -282,8 +280,18 @@
       if (titleBlock.issue && titleBlock.issue.JST) {
         try {
           const issueDate = new Date(titleBlock.issue.JST);
-          const dayVal = issueDate.getDate();
-          const hourVal = issueDate.getHours();
+          
+          // 💡 【UTC環境対策】サーバー実行環境に左右されず、確実にJSTで「日」と「時」を抽出
+          const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
+            timeZone: 'Asia/Tokyo',
+            day: 'numeric',
+            hour: 'numeric',
+            hour12: false
+          });
+          const parts = jstFormatter.formatToParts(issueDate);
+          const dayVal = parts.find(p => p.type === 'day').value;
+          const hourVal = parts.find(p => p.type === 'hour').value;
+
           document.getElementById("t-report-time").textContent = `${dayVal}日 ${hourVal}時発表`;
         } catch (e) {
           console.error("発表時間のパースに失敗しました:", e);
@@ -406,25 +414,38 @@
       }
 
       pointsForTube.forEach((p) => {
-        // 💡 実況・予報のあらゆる時間データキー名に対応できるように網羅
-        const timeStr = p.block.dateTime || p.block.time || p.block.validTime;
-        if (p.block && timeStr) {
+        // 💡 【修正点】気象庁の生JSONの「validtime」オブジェクト構造(JST/UTC)に完全対応
+        let targetDateStr = null;
+        if (p.block.validtime) {
+          targetDateStr = p.block.validtime.JST || p.block.validtime;
+        } else {
+          targetDateStr = p.block.dateTime || p.block.time || p.block.validTime;
+        }
+
+        if (targetDateStr) {
           try {
-            const d = new Date(timeStr);
+            const d = new Date(targetDateStr);
             if (!isNaN(d.getTime())) {
-              const dayVal = d.getDate();
-              const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-              const weekVal = weekdays[d.getDay()];
-              const hourVal = d.getHours();
+              // 💡 【UTC環境対策】サーバー実行環境でも絶対にJST(日本時間)で正確な曜日と時間を計算
+              const mapTimeFormatter = new Intl.DateTimeFormat('ja-JP', {
+                timeZone: 'Asia/Tokyo',
+                day: 'numeric',
+                weekday: 'short',
+                hour: 'numeric',
+                hour12: false
+              });
+              const mParts = mapTimeFormatter.formatToParts(d);
+              const dayVal = mParts.find(pt => pt.type === 'day').value;
+              const weekVal = mParts.find(pt => pt.type === 'weekday').value;
+              const hourVal = mParts.find(pt => pt.type === 'hour').value;
+              
               const timeText = `${dayVal}日(${weekVal})${hourVal}時`;
 
-              // 💡 バグの原因だったマイナス値を廃止し、[0, 15]（左端中央）を円の中心に固定。
-              // 右側へのズレは、CSSの「padding-left」で100%安全に制御する形に変更しました。
               const timeIcon = L.divIcon({
                 className: 'map-time-icon-container',
                 html: `<div class="map-time-label">${timeText}</div>`,
-                iconSize: [250, 30], // 横幅を250pxに広げて文字切れを完全に防止
-                iconAnchor: [0, 15]  // 左端中央を円の座標に完全に一致させる
+                iconSize: [250, 30], 
+                iconAnchor: [0, 15]  
               });
 
               L.marker([p.lat, p.lng], { icon: timeIcon, interactive: false }).addTo(map);
