@@ -83,7 +83,7 @@
       display: none; /* データが正常に読み込まれるまで非表示 */
     }
 
-    /* 🔢 台風の号数（DIN 2014 DBを適用） */
+    /* 🔢 台風の号数（★ここだけ唯一 DIN 2014 DB を適用） */
     .typhoon-number-value {
       position: absolute;
       top: 1px;          /* 上下位置調整 */
@@ -119,9 +119,8 @@
       text-align: right;
     }
 
-    /* パラメータ内の「数値」にDINフォントを美しく適用 */
-    .num-din {
-      font-family: 'DIN 2014 DB', sans-serif;
+    /* パラメータ内の「数値」のスタイル設定（Noto Sans JP が自動適用されます） */
+    .param-num {
       font-size: 32px;
       margin-right: 4px;
     }
@@ -171,8 +170,8 @@
         <div class="typhoon-name-value" id="t-name">---</div>
         
         <div class="param-value" id="t-location">---</div>
-        <div class="param-value" id="t-pressure"><span class="num-din" id="v-pressure">---</span>hPa</div>
-        <div class="param-value" id="t-wind"><span class="num-din" id="v-wind">---</span>m/s</div>
+        <div class="param-value" id="t-pressure"><span class="param-num" id="v-pressure">---</span>hPa</div>
+        <div class="param-value" id="t-wind"><span class="param-num" id="v-wind">---</span>m/s</div>
         <div class="param-value" id="t-direction">---</div>
 
       </div>
@@ -186,7 +185,6 @@
     let map;
 
     function initMap() {
-      // テレビの固定画面として最高精度を保つため、ドラッグやズームなどの手動操作を完全ロック
       map = L.map('map', {
         zoomControl: false,
         attributionControl: false,
@@ -197,7 +195,6 @@
         touchZoom: false
       }).setView([25.0, 135.0], 5);
 
-      // 💡 地名、都市名、道路、国境線が「一切入っていない」完全無地のダークマップ
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
         maxZoom: 10,
         minZoom: 3
@@ -231,7 +228,6 @@
         const detailResponse = await fetch(detailUrl);
         const specifications = await detailResponse.json();
 
-        // テロップ描画 ＆ マッププロット
         parseAndRenderTelop(specifications);
         drawTyphoonOnMap(specifications);
 
@@ -242,27 +238,23 @@
       }
     }
 
-    // 取得データをパースし、template.pngの空きスペースに超精密に流し込む
     function parseAndRenderTelop(dataArray) {
       const telopBox = document.getElementById("telop-container");
       if (!dataArray || dataArray.length < 2) return;
 
-      // 1. 基本情報の抽出
       const titleBlock = dataArray[0];
       let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
       if (rawNumber.length === 4) {
-        rawNumber = parseInt(rawNumber.substring(2, 4), 10); // "2606" -> 6
+        rawNumber = parseInt(rawNumber.substring(2, 4), 10);
       }
       const typhoonName = (titleBlock.name && titleBlock.name.jp) ? titleBlock.name.jp : "無名";
 
-      // 2. 現在の実況ブロックを取得
       const analysisBlock = dataArray.find(b => b.part === "実況" || (b.part && b.part.jp === "実況")) || dataArray[1];
       
       const location = analysisBlock.location || "---";
       const pressure = analysisBlock.pressure || "---";
       const maxWind = (analysisBlock.maximumWind && analysisBlock.maximumWind.sustained && analysisBlock.maximumWind.sustained["m/s"]) ? analysisBlock.maximumWind.sustained["m/s"] : "---";
 
-      // 3. 進路（進行方向と速度）の整形
       let course = analysisBlock.course || "";
       let speedNote = (analysisBlock.speed && analysisBlock.speed.note && analysisBlock.speed.note.jp) ? analysisBlock.speed.note.jp : "";
       let speedKm = (analysisBlock.speed && analysisBlock.speed["km/h"]) ? `${analysisBlock.speed["km/h"]}km/h` : "";
@@ -272,7 +264,6 @@
         directionSpeed = `${course} ${speedNote || speedKm}`.trim();
       }
 
-      // 4. HTMLの各データエリアを書き換え
       document.getElementById("t-num").textContent = rawNumber;
       document.getElementById("t-name").textContent = typhoonName;
       document.getElementById("t-location").textContent = location;
@@ -280,11 +271,9 @@
       document.getElementById("v-wind").textContent = maxWind;
       document.getElementById("t-direction").textContent = directionSpeed;
 
-      // 描画レイヤーをアクティブ化
       telopBox.style.display = "block";
     }
 
-    // 地図上に台風の進路、予報円をスマートに描画
     function drawTyphoonOnMap(dataArray) {
       if (!dataArray || dataArray.length < 2) return;
 
@@ -300,7 +289,6 @@
         const isAnalysis = (block.part === "実況" || (block.part && block.part.jp === "実況"));
 
         if (isAnalysis) {
-          // 【現在地マーク】（ソリッドな赤サークル）
           L.circleMarker([lat, lng], {
             radius: 7,
             color: '#ff3b30',
@@ -309,7 +297,6 @@
             weight: 2
           }).addTo(map);
 
-          // 【暴風域・強風域】
           if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
             const radiusKm = block.galeWarning[0].range.km;
             L.circle([lat, lng], {
@@ -321,7 +308,6 @@
             }).addTo(map);
           }
         } else {
-          // 【予報円】（テレビのグラフィックライクな白破線サークル）
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
             const radiusKm = block.probabilityCircleRadius.km;
             
@@ -344,7 +330,6 @@
         }
       });
 
-      // 進路を結ぶ細身でシャープな予想ライン（白）
       if (latLngs.length > 1) {
         L.polyline(latLngs, {
           color: '#ffffff',
@@ -353,10 +338,8 @@
         }).addTo(map);
       }
 
-      // 右上の template.png の背後に台風情報が隠れないよう自動カメラ調整
       if (latLngs.length > 0) {
         const bounds = L.latLngBounds(latLngs);
-        // パディングを大きく取ることで、右上のテロップ枠を避けた絶妙な位置に自動フォーカスします
         map.fitBounds(bounds, { padding: [260, 260] });
       }
     }
