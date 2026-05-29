@@ -113,7 +113,7 @@
     .param-value {
       position: absolute;
       right: 30px;       /* 右端からの余白 */
-      font-size: 26px;
+      font-size: 32px;   /* 💡 全体サイズを32pxに統一 */
       font-weight: 700;
       color: #ffffff;
       text-align: right;
@@ -121,15 +121,17 @@
 
     /* パラメータ内の「数値」のスタイル設定（Noto Sans JP が自動適用されます） */
     .param-num {
-      font-size: 32px;
       margin-right: 4px;
     }
 
-    /* 各行の高さ（Y座標）の指定（template.pngの行間隔にフィットさせます） */
-    #t-location { top: 144px; }
-    #t-pressure { top: 194px; }
-    #t-wind     { top: 244px; }
-    #t-direction{ top: 294px; }
+
+    /* 📍 各行の縦位置（Y座標）の個別微調整エリア */
+    /* template.pngの文字の高さに合わせて数値を変更してください */
+    #t-location  { top: 144px; }  /* 位置の行の高さ */
+    #t-pressure  { top: 194px; }  /* 気圧の行の高さ */
+    #t-wind      { top: 244px; }  /* 風速の行の高さ */
+    #t-direction { top: 294px; }  /* 進路の行の高さ */
+
 
     /* エラー・未発表時のオーバーレイ */
     .info-overlay {
