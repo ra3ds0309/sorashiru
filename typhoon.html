@@ -12,7 +12,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* 🛠️ 指定のDINフォントをローカルからロード */
     @font-face {
       font-family: 'DIN 2014 DB';
       src: url('assets/typhoon/DIN 2014 DB.otf') format('opentype');
@@ -30,7 +29,6 @@
       font-family: 'Noto Sans JP', sans-serif; 
     }
 
-    /* 16:9 画面サイズを完全にロック */
     .viewport-trimmer {
       width: 1920px;
       height: 1080px;
@@ -38,7 +36,6 @@
       overflow: hidden;
     }
 
-    /* 🗺️ 背面：文字・境界線が一切ないクリアな地図レイヤー */
     #map {
       width: 1920px;
       height: 1080px;
@@ -49,7 +46,6 @@
       background: #111317;
     }
 
-    /* 🎬 前面：グラフィック・データ送出オーバーレイレイヤー */
     .ui-overlay-layer {
       position: absolute;
       top: 0;
@@ -57,10 +53,9 @@
       width: 1920px;
       height: 1080px;
       z-index: 2;
-      pointer-events: none; /* 地図の自動フィット等を邪魔しない */
+      pointer-events: none; 
     }
 
-    /* 🖼️ 16:9 フルサイズ画像を完全にぴったり重ね合わせる共通スタイル */
     .full-screen-asset {
       position: absolute;
       top: 0;
@@ -71,7 +66,6 @@
       pointer-events: none;
     }
 
-    /* 📊 データテキスト配置専用のコンテナ（右上の黒い座布団の位置に完全に合わせる） */
     .typhoon-data-container {
       position: absolute;
       top: 36px; 
@@ -79,10 +73,9 @@
       width: 476px; 
       height: 352px;
       pointer-events: none;
-      display: none; /* データが正常に読み込まれるまで非表示 */
+      display: none; 
     }
 
-    /* 🔢 台風の号数（★ここだけ唯一 DIN 2014 DB を適用） */
     .typhoon-number-value {
       position: absolute;
       top: 1px;          
@@ -95,7 +88,6 @@
       line-height: 1;
     }
 
-    /* 🏷️ アジア名（グレーの帯エリアの中央） */
     .typhoon-name-value {
       position: absolute;
       top: 84px;         
@@ -108,7 +100,6 @@
       letter-spacing: 0.05em;
     }
 
-    /* 📋 パラメータ（位置・気圧・風速・進路）の共通スタイル値（右寄せ） */
     .param-value {
       position: absolute;
       right: 30px;       
@@ -118,18 +109,15 @@
       text-align: right;
     }
 
-    /* パラメータ内の「数値」のスタイル設定 */
     .param-num {
       margin-right: 4px;
     }
 
-    /* 📍 各行の縦位置（Y座標）の個別微調整エリア */
-    #t-location  { top: 138px; }  /* 位置の行の高さ */
-    #t-pressure  { top: 190px; }  /* 気圧の行の高さ */
-    #t-wind      { top: 240px; }  /* 風速の行の高さ */
-    #t-direction { top: 293px; }  /* 進路の行の高さ */
+    #t-location  { top: 138px; }  
+    #t-pressure  { top: 190px; }  
+    #t-wind      { top: 240px; }  
+    #t-direction { top: 293px; }  
 
-    /* エラー・未発表時のオーバーレイ */
     .info-overlay {
       position: absolute;
       top: 50%;
@@ -144,7 +132,6 @@
       display: none;
     }
 
-    /* 不要なマップUIを根こそぎ非表示 */
     .leaflet-control-attribution, .leaflet-control-zoom {
       display: none !important;
     }
@@ -156,14 +143,12 @@
     <div id="map"></div>
 
     <div class="ui-overlay-layer">
-      
       <img src="assets/typhoon/title.png" class="full-screen-asset" alt="Title Layer">
       <img src="assets/typhoon/template.png" class="full-screen-asset" alt="Template Layer">
 
       <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
 
       <div class="typhoon-data-container" id="telop-container">
-        
         <div class="typhoon-number-value" id="t-num">--</div>
         <div class="typhoon-name-value" id="t-name">---</div>
         
@@ -171,7 +156,6 @@
         <div class="param-value" id="t-pressure"><span class="param-num" id="v-pressure">---</span>hPa</div>
         <div class="param-value" id="t-wind"><span class="param-num" id="v-wind">---</span>m/s</div>
         <div class="param-value" id="t-direction">---</div>
-
       </div>
     </div>
   </div>
@@ -203,7 +187,6 @@
       const infoMsg = document.getElementById("info-message");
 
       try {
-        console.log("そらしる台風：最新データをシーク中...");
         const listResponse = await fetch(`${TYPHOON_LIST_URL}?t=${Date.now()}`);
         const typhoonList = await listResponse.json();
 
@@ -276,7 +259,7 @@
       if (!dataArray || dataArray.length < 2) return;
 
       const latLngs = [];
-      const pointsForTube = []; // チューブ計算用のデータストック
+      const pointsForTube = [];
 
       dataArray.forEach((block) => {
         if (block.part === "title" || !block.position || !block.position.deg) return;
@@ -291,45 +274,43 @@
         let warningKm = 0;
 
         if (!isAnalysis) {
-          // 【予報円】の半径
+          // 【予報】の円と暴風警戒域
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
             radiusKm = block.probabilityCircleRadius.km;
           }
-          // 【暴風警戒域】の半径（気象庁のJSONから取得）
           if (block.stormWarningArea && block.stormWarningArea.radius && block.stormWarningArea.radius.km) {
             warningKm = block.stormWarningArea.radius.km;
           } else if (block.stormWarningArea && block.stormWarningArea.km) {
             warningKm = block.stormWarningArea.km;
           }
         } else {
-          // 【実況】の場合は、現在の暴風域を暴風警戒域チューブのスタート地点にする
-          if (block.galeWarning && block.galeWarning[0] && block.galeWarning[0].range) {
-            warningKm = block.galeWarning[0].range.km;
+          // ⚠️ 【修正ポイント】強風域(galeWarning)ではなく暴風域(stormWarning)をチューブの開始点に設定
+          if (block.stormWarning && block.stormWarning[0] && block.stormWarning[0].range) {
+            warningKm = block.stormWarning[0].range.km;
+          } else if (block.stormWarning && block.stormWarning.km) {
+            warningKm = block.stormWarning.km;
           }
         }
 
         pointsForTube.push({ lat, lng, radiusKm, warningKm, isAnalysis, block });
       });
 
-      // 🗺️ --- 1. 面と線（チューブ）の描画 ---
+      // 🗺️ 1. 面と線の描画（チューブ）
       if (pointsForTube.length > 1) {
         const leftSides = [];
         const rightSides = [];
         const warningLeft = [];
         const warningRight = [];
 
-        // セグメント（区間）ごとに計算し、急カーブでの線の交差（崩れ）を防ぐ
         for (let i = 0; i < pointsForTube.length - 1; i++) {
           const p1 = pointsForTube[i];
           const p2 = pointsForTube[i + 1];
 
-          // 2点間の進行方向角度
           const angle = Math.atan2(
             p2.lng - p1.lng,
             (p2.lat - p1.lat) * Math.cos(((p1.lat + p2.lat) / 2) * (Math.PI / 180))
           );
 
-          // 指定した半径分、左右に座標をズラすヘルパー関数
           const getOffset = (p, rKm, ang) => {
             if (rKm <= 0) return [p.lat, p.lng];
             const meters = rKm * 1000;
@@ -339,18 +320,15 @@
             return [p.lat + r_lat * Math.cos(ang), p.lng + r_lng * Math.sin(ang)];
           };
 
-          // 予報円チューブ（白）の左右座標をストック
           leftSides.push(getOffset(p1, p1.radiusKm, angle - Math.PI / 2), getOffset(p2, p2.radiusKm, angle - Math.PI / 2));
           rightSides.push(getOffset(p1, p1.radiusKm, angle + Math.PI / 2), getOffset(p2, p2.radiusKm, angle + Math.PI / 2));
 
-          // 暴風警戒域チューブ（赤）の左右座標をストック
           if (p1.warningKm > 0 || p2.warningKm > 0) {
             warningLeft.push(getOffset(p1, p1.warningKm, angle - Math.PI / 2), getOffset(p2, p2.warningKm, angle - Math.PI / 2));
             warningRight.push(getOffset(p1, p1.warningKm, angle + Math.PI / 2), getOffset(p2, p2.warningKm, angle + Math.PI / 2));
           }
         }
 
-        // 先に暴風警戒域（赤）を描画（予報円の下に敷くため）
         if (warningLeft.length > 0) {
           const warningAreaCoords = [...warningLeft, ...[...warningRight].reverse()];
           L.polygon(warningAreaCoords, { color: 'transparent', fillColor: '#ff3b30', fillOpacity: 0.15 }).addTo(map);
@@ -358,29 +336,29 @@
           L.polyline(warningRight, { color: '#ff3b30', weight: 2, opacity: 0.8 }).addTo(map);
         }
 
-        // 次に予報円（白）を描画
         const areaCoords = [...leftSides, ...[...rightSides].reverse()];
         L.polygon(areaCoords, { color: 'transparent', fillColor: '#ffffff', fillOpacity: 0.04 }).addTo(map);
         L.polyline(leftSides, { color: '#ffffff', weight: 2, opacity: 0.6 }).addTo(map);
         L.polyline(rightSides, { color: '#ffffff', weight: 2, opacity: 0.6 }).addTo(map);
       }
 
-      // 📍 --- 2. 各ポイントの円マークを描画 ---
+      // 📍 2. 各ポイントの円マーク
       pointsForTube.forEach((p) => {
         if (p.isAnalysis) {
-          // 【現在地マーク】
           L.circleMarker([p.lat, p.lng], { radius: 7, color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 1, weight: 2 }).addTo(map);
 
-          // 【実況：暴風域（オレンジ）】
+          // 【実況：強風域（オレンジ）】
           if (p.block.galeWarning && p.block.galeWarning[0] && p.block.galeWarning[0].range) {
             L.circle([p.lat, p.lng], { radius: p.block.galeWarning[0].range.km * 1000, color: '#ff9500', weight: 1.5, fillColor: '#ff9500', fillOpacity: 0.12 }).addTo(map);
           }
+          // 【実況：暴風域（赤）】
+          if (p.warningKm > 0) {
+            L.circle([p.lat, p.lng], { radius: p.warningKm * 1000, color: '#ff3b30', weight: 1.5, fillColor: '#ff3b30', fillOpacity: 0.2 }).addTo(map);
+          }
         } else {
-          // 【予報：暴風警戒域の円（赤）】キャップを丸くするため枠線なしで塗りつぶし
           if (p.warningKm > 0) {
             L.circle([p.lat, p.lng], { radius: p.warningKm * 1000, color: 'transparent', weight: 0, fillColor: '#ff3b30', fillOpacity: 0.15 }).addTo(map);
           }
-          // 【予報：予報円（白）】
           if (p.radiusKm > 0) {
             L.circle([p.lat, p.lng], { radius: p.radiusKm * 1000, color: '#ffffff', weight: 1.5, dashArray: '5, 5', fillColor: '#ffffff', fillOpacity: 0.03 }).addTo(map);
             L.circleMarker([p.lat, p.lng], { radius: 2.5, color: '#ffffff', fillColor: '#ffffff', fillOpacity: 1 }).addTo(map);
@@ -388,12 +366,12 @@
         }
       });
 
-      // 🛤️ --- 3. 中心線の描画 ---
+      // 🛤️ 3. 中心線
       if (latLngs.length > 1) {
         L.polyline(latLngs, { color: '#ffffff', weight: 3, opacity: 0.7 }).addTo(map);
       }
 
-      // 📐 --- 4. 描画範囲の自動フィット ---
+      // 📐 4. 自動フィット
       if (latLngs.length > 0) {
         map.fitBounds(L.latLngBounds(latLngs), { padding: [260, 260] });
       }
