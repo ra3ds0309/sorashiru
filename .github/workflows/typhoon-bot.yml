@@ -10,6 +10,10 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    
+    # 💡 エラー128対策：リポジトリへの書き込み権限（git push）を明示的に許可する
+    permissions:
+      contents: write
 
     steps:
       # 1. リポジトリのコードをチェックアウト
@@ -20,7 +24,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 💡 警告対策：Node.js 24 にバージョンをアップ
+          node-version: 24
 
       # 3. 必要なパッケージのインストール
       - name: Install dependencies
@@ -32,6 +37,8 @@ jobs:
       - name: Run script & Notify Discord
         env:
           TYPHOON_WEBHOOK_URL: ${{ secrets.TYPHOON_WEBHOOK_URL }}
+          # 💡 警告対策：Node.js 24 への強制移行をあらかじめ有効化する環境変数
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: node capture-typhoon.js
 
       # 5. 撮影された画像がある場合のみ、リポジトリに保存してコミットする
