@@ -15,18 +15,19 @@ async function generateGeminiExplanation(typhoonList, specifications) {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
-  // 💡 「令和○年台風○号は〜」という前置き・主語を禁止するルールをプロンプトに追加
-  const prompt = `以下の気象庁の台風情報JSONデータ（全体概要と詳細仕様）を読み込み、現在の台風の状況（位置、現在の勢力など）と今後の進路予想について、一般の人向けに分かりやすく3行程度の短い簡単な概要解説を日本語で作成してください。
+  // 💡 【エラー対策】過去の不要な履歴データを省き、最新の「実況」と「予報」だけに絞り込んでデータサイズを劇的に削減
+  const minimizedSpecs = specifications.filter((block, index) => {
+    if (index === 0) return true; // タイトルブロックは残す
+    const partName = block.part?.jp || block.part;
+    return partName === "実況" || partName === "予報";
+  });
 
-【出力の絶対ルール】
-・文章の冒頭に「令和○年台風○号は〜」や「台風○号は〜」といった前置きや主語は一切含めず、すぐに現在の具体的な状況（例：「現在、〇〇の南にあって…」など）から書き始めてください。
-・解説以外の挨拶、前置き、余計な文、装飾（Markdownの太字 ** など）は一切含めず、解説的本文のみをそのまま出力してください。
+  // 💡 プロンプトをシンプルに改良。「台風○号は〜」などの前置きや主語を省く指示をダイレクトに伝えています。
+  const prompt = `以下の台風データをもとに、現在の状況と今後の進路予想について、一般向けに分かりやすく3行程度の短い文章で要約を作成してください。
+「台風○号は」などの主語や前置きは一切省き、具体的な現在の位置や状況（例：「現在、〇〇の南にあって…」など）から直接書き始めてください。解説文のみを出力し、Markdownの太字(**)や挨拶は含めないでください。
 
-【台風データ1（typhoon.json）】
-${JSON.stringify(typhoonList)}
-
-【台風データ2（specifications.json）】
-${JSON.stringify(specifications)}`;
+【台風データ】
+${JSON.stringify({ summary: typhoonList, details: minimizedSpecs })}`;
 
   try {
     const response = await fetch(url, {
@@ -37,7 +38,10 @@ ${JSON.stringify(specifications)}`;
       })
     });
 
-    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+    }
 
     const data = await response.json();
     return data.candidates[0].content.parts[0].text.trim();
@@ -82,7 +86,7 @@ ${JSON.stringify(specifications)}`;
   const titleBlock = specifications[0];
   let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
   if (rawNumber.length === 4) {
-    rawNumber = parseInt(rawNumber.substring(2, 4), 10); // 例: 2606 -> 6
+    rawNumber = parseInt(rawNumber.substring(2, 4), 10); 
   }
 
   let announceTimeStr = "---";
@@ -102,7 +106,7 @@ ${JSON.stringify(specifications)}`;
     announceTimeStr = `${day}日${hours}時`;
   }
 
-  // 💡 指定の部分を ** で囲み、Discord上で太字になるように変更
+  // 💡 タイトルブロックを ** で囲み、Discord上で確実に太字になるよう変更
   const discordMessage = `**【台風${rawNumber}号 進路予想】** ${announceTimeStr} 気象庁発表\n${geminiExplanation}`;
 
   // 📸 4. スクショ撮影処理
@@ -126,11 +130,24 @@ ${JSON.stringify(specifications)}`;
   console.log('地図の描画を待っています(5秒)...');
   await new Promise(resolve => setTimeout(resolve, 5000));
 
+  // 💡 【UTC対策】実行環境（ローカル/サーバー）を問わず、100%確実に「日本時間（JST）」でファイル名を作るロジックに修正
   const now = new Date();
-  const jstOffset = 9 * 60 * 60 * 1000;
-  const jstDate = new Date(now.getTime() + jstOffset);
-  const timestamp = jstDate.toISOString().replace(/T/, '_').replace(/\..+/, '').replace(/:/g, '').substring(0, 13);
+  const fileDateFormatter = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const fParts = fileDateFormatter.formatToParts(now);
+  const year = fParts.find(p => p.type === 'year').value;
+  const month = fParts.find(p => p.type === 'month').value;
+  const dayStr = fParts.find(p => p.type === 'day').value;
+  const hourStr = fParts.find(p => p.type === 'hour').value;
+  const minStr = fParts.find(p => p.type === 'minute').value;
   
+  const timestamp = `${year}-${month}-${dayStr}_${hourStr}${minStr}`;
   const filename = `typhoon_${timestamp}.png`;
   const screenshotPath = path.join(dirPath, filename);
 
