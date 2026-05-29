@@ -157,13 +157,14 @@
       display: none;
     }
 
-    /* 💡 文字表示コンテナの枠線や背景を完全に透明化 */
+    /* 💡 文字表示コンテナの枠線を透明化し、はみ出し(overflow)を絶対に許可する */
     .map-time-icon-container {
       background: transparent !important;
       border: none !important;
+      overflow: visible !important;
     }
 
-    /* 💡 地図上の予報時間テキストのスタイル */
+    /* 💡 地図上の各円の右側に表示される日時テキスト */
     .map-time-label {
       color: #ffffff;
       font-family: 'Noto Sans JP', sans-serif;
@@ -172,6 +173,7 @@
       letter-spacing: 0.02em;
       white-space: nowrap;
       line-height: 30px; /* 縦方向の中央揃え */
+      padding-left: 22px; /* ✨ 円の中心から右側に22px離した位置に確実に文字を押し出す */
       text-shadow: 
         -2px -2px 0 #111317,  
          2px -2px 0 #111317,
@@ -404,8 +406,8 @@
       }
 
       pointsForTube.forEach((p) => {
-        // 💡 実況(dateTime)と予報(validTime)から安全に時間を取得
-        const timeStr = p.block.dateTime || p.block.validTime;
+        // 💡 実況・予報のあらゆる時間データキー名に対応できるように網羅
+        const timeStr = p.block.dateTime || p.block.time || p.block.validTime;
         if (p.block && timeStr) {
           try {
             const d = new Date(timeStr);
@@ -416,12 +418,13 @@
               const hourVal = d.getHours();
               const timeText = `${dayVal}日(${weekVal})${hourVal}時`;
 
-              // 💡 表示領域を[200, 30]で固定して文字が潰れるのを防止
+              // 💡 バグの原因だったマイナス値を廃止し、[0, 15]（左端中央）を円の中心に固定。
+              // 右側へのズレは、CSSの「padding-left」で100%安全に制御する形に変更しました。
               const timeIcon = L.divIcon({
                 className: 'map-time-icon-container',
                 html: `<div class="map-time-label">${timeText}</div>`,
-                iconSize: [200, 30],
-                iconAnchor: [-15, 15] // マーカーの右側に綺麗に配置されるよう調整
+                iconSize: [250, 30], // 横幅を250pxに広げて文字切れを完全に防止
+                iconAnchor: [0, 15]  // 左端中央を円の座標に完全に一致させる
               });
 
               L.marker([p.lat, p.lng], { icon: timeIcon, interactive: false }).addTo(map);
@@ -456,10 +459,9 @@
       }
 
       if (latLngs.length > 0) {
-        // 💡 拡大しすぎを防止(maxZoom: 6)し、右上のテロップ枠を避ける非対称パディングを設定
         map.fitBounds(L.latLngBounds(latLngs), {
           paddingTopLeft: [150, 150],
-          paddingBottomRight: [560, 200], // 右側を広く空けてテロップ裏への回り込みを防ぐ
+          paddingBottomRight: [560, 200], 
           maxZoom: 6
         });
       }
