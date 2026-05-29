@@ -15,8 +15,12 @@ async function generateGeminiExplanation(typhoonList, specifications) {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
+  // 💡 「令和○年台風○号は〜」という前置き・主語を禁止するルールをプロンプトに追加
   const prompt = `以下の気象庁の台風情報JSONデータ（全体概要と詳細仕様）を読み込み、現在の台風の状況（位置、現在の勢力など）と今後の進路予想について、一般の人向けに分かりやすく3行程度の短い簡単な概要解説を日本語で作成してください。
-解説以外の挨拶、前置き、余計な文、装飾（Markdownの太字 ** など）は一切含めず、解説的本文のみをそのまま出力してください。
+
+【出力の絶対ルール】
+・文章の冒頭に「令和○年台風○号は〜」や「台風○号は〜」といった前置きや主語は一切含めず、すぐに現在の具体的な状況（例：「現在、〇〇の南にあって…」など）から書き始めてください。
+・解説以外の挨拶、前置き、余計な文、装飾（Markdownの太字 ** など）は一切含めず、解説的本文のみをそのまま出力してください。
 
 【台風データ1（typhoon.json）】
 ${JSON.stringify(typhoonList)}
@@ -85,7 +89,6 @@ ${JSON.stringify(specifications)}`;
   if (titleBlock.issue && titleBlock.issue.JST) {
     const issueDate = new Date(titleBlock.issue.JST);
     
-    // 💡 サーバー（UTC環境）でも確実に日本標準時（JST）で「日」と「時」を取得する修正
     const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
       timeZone: 'Asia/Tokyo',
       day: 'numeric',
@@ -99,8 +102,8 @@ ${JSON.stringify(specifications)}`;
     announceTimeStr = `${day}日${hours}時`;
   }
 
-  // 指定のフォーマットを構成
-  const discordMessage = `【台風${rawNumber}号 進路予想】${announceTimeStr} 気象庁発表\n${geminiExplanation}`;
+  // 💡 指定の部分を ** で囲み、Discord上で太字になるように変更
+  const discordMessage = `**【台風${rawNumber}号 進路予想】** ${announceTimeStr} 気象庁発表\n${geminiExplanation}`;
 
   // 📸 4. スクショ撮影処理
   const dirPath = path.join(__dirname, 'typhoon-screenshots');
