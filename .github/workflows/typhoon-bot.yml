@@ -2,10 +2,10 @@ name: Typhoon Screenshot Bot
 
 on:
   schedule:
-    # ⏱️ 1時間ごとに自動実行 (UTC 0分 = 日本時間 毎時0分)
-    - cron: '0 * * * *'
+    # ⏱️ 日本時間(JST)の毎日昼12:30に実行 (12:30 - 9時間 = UTC 3:30)
+    - cron: '30 3 * * *'
   workflow_dispatch:
-    # 🛠️ GitHubの画面から手動でいつでも実行できるようにするボタン
+    # 🛠️ 手動実行ボタンを残しておく（テスト用）
 
 jobs:
   run-bot:
@@ -16,29 +16,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Node.js 環境のセットアップ (標準fetchやBlobが安定して動くv20を指定)
+      # 2. Node.js 環境のセットアップ
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3. 必要なパッケージ (puppeteer) のインストール
+      # 3. 必要なパッケージのインストール
       - name: Install dependencies
         run: |
           npm init -y
           npm install puppeteer
 
-      # 4. スクショ撮影スクリプトの実行 (シークレットを環境変数に渡す)
+      # 4. スクショ撮影スクリプトの実行（台風がなければここで自動スキップされます）
       - name: Run script & Notify Discord
         env:
           TYPHOON_WEBHOOK_URL: ${{ secrets.TYPHOON_WEBHOOK_URL }}
         run: node capture-typhoon.js
 
-      # 5. 💡 撮影したスクショをリポジトリの typhoon-screenshots フォルダに保存・プッシュする
+      # 5. 撮影された画像がある場合のみ、リポジトリに保存してコミットする
       - name: Commit and Push Screenshot
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add typhoon-screenshots/*.png
+          # 新しい画像がない場合は、エラーを出さずにここで正常終了します
           git commit -m "Update typhoon screenshot [skip ci]" || exit 0
           git push
