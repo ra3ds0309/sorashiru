@@ -66,6 +66,20 @@
       pointer-events: none;
     }
 
+    /* ⏱️ 天気予報と同じデザイン・配置の発表時刻タグ */
+    .report-time-tag {
+      position: absolute;
+      top: 125px;
+      left: 50px;
+      color: #ffffff;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 28px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      z-index: 4;
+    }
+
     .typhoon-data-container {
       position: absolute;
       top: 36px; 
@@ -146,6 +160,8 @@
       <img src="assets/typhoon/title.png" class="full-screen-asset" alt="Title Layer">
       <img src="assets/typhoon/template.png" class="full-screen-asset" alt="Template Layer">
 
+      <div class="report-time-tag" id="t-report-time"></div>
+
       <div class="info-overlay" id="info-message">台風情報は発表されていません</div>
 
       <div class="typhoon-data-container" id="telop-container">
@@ -221,9 +237,18 @@
 
     function parseAndRenderTelop(dataArray) {
       const telopBox = document.getElementById("telop-container");
-      if (!dataArray || dataArray.length < 2) return;
+      if (!dataArray || dataArray.length < 1) return;
 
       const titleBlock = dataArray[0];
+      
+      // ⏱️ 発表時刻（issue）から日（d）と時（h）を取得して反映
+      if (titleBlock.issue && titleBlock.issue.JST) {
+        const issueDate = new Date(titleBlock.issue.JST);
+        const day = issueDate.getDate();
+        const hours = issueDate.getHours();
+        document.getElementById("t-report-time").textContent = `${day}日 ${hours}時発表`;
+      }
+
       let rawNumber = titleBlock.typhoonNumber ? String(titleBlock.typhoonNumber) : "--";
       if (rawNumber.length === 4) {
         rawNumber = parseInt(rawNumber.substring(2, 4), 10);
@@ -274,7 +299,6 @@
         let warningKm = 0;
 
         if (!isAnalysis) {
-          // 【予報】の円と暴風警戒域
           if (block.probabilityCircleRadius && block.probabilityCircleRadius.km) {
             radiusKm = block.probabilityCircleRadius.km;
           }
@@ -284,7 +308,6 @@
             warningKm = block.stormWarningArea.km;
           }
         } else {
-          // ⚠️ 【修正ポイント】強風域(galeWarning)ではなく暴風域(stormWarning)をチューブの開始点に設定
           if (block.stormWarning && block.stormWarning[0] && block.stormWarning[0].range) {
             warningKm = block.stormWarning[0].range.km;
           } else if (block.stormWarning && block.stormWarning.km) {
@@ -295,7 +318,6 @@
         pointsForTube.push({ lat, lng, radiusKm, warningKm, isAnalysis, block });
       });
 
-      // 🗺️ 1. 面と線の描画（チューブ）
       if (pointsForTube.length > 1) {
         const leftSides = [];
         const rightSides = [];
@@ -342,16 +364,13 @@
         L.polyline(rightSides, { color: '#ffffff', weight: 2, opacity: 0.6 }).addTo(map);
       }
 
-      // 📍 2. 各ポイントの円マーク
       pointsForTube.forEach((p) => {
         if (p.isAnalysis) {
           L.circleMarker([p.lat, p.lng], { radius: 7, color: '#ff3b30', fillColor: '#ff3b30', fillOpacity: 1, weight: 2 }).addTo(map);
 
-          // 【実況：強風域（オレンジ）】
           if (p.block.galeWarning && p.block.galeWarning[0] && p.block.galeWarning[0].range) {
             L.circle([p.lat, p.lng], { radius: p.block.galeWarning[0].range.km * 1000, color: '#ff9500', weight: 1.5, fillColor: '#ff9500', fillOpacity: 0.12 }).addTo(map);
           }
-          // 【実況：暴風域（赤）】
           if (p.warningKm > 0) {
             L.circle([p.lat, p.lng], { radius: p.warningKm * 1000, color: '#ff3b30', weight: 1.5, fillColor: '#ff3b30', fillOpacity: 0.2 }).addTo(map);
           }
@@ -366,12 +385,10 @@
         }
       });
 
-      // 🛤️ 3. 中心線
       if (latLngs.length > 1) {
         L.polyline(latLngs, { color: '#ffffff', weight: 3, opacity: 0.7 }).addTo(map);
       }
 
-      // 📐 4. 自動フィット
       if (latLngs.length > 0) {
         map.fitBounds(L.latLngBounds(latLngs), { padding: [260, 260] });
       }
