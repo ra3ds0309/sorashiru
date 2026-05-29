@@ -157,15 +157,20 @@
       display: none;
     }
 
+    /* 💡 Leaflet標準の白い四角背景と枠線を完全に消去する */
+    .leaflet-div-icon {
+      background: transparent !important;
+      border: none !important;
+    }
+
     /* 💡 地図上の予報時間テキストのスタイル */
     .map-time-label {
       color: #ffffff;
       font-family: 'Noto Sans JP', sans-serif;
-      font-size: 18px; /* 視認性を上げるため少し大きめに */
+      font-size: 18px;
       font-weight: 700;
       letter-spacing: 0.02em;
       white-space: nowrap;
-      /* 地図や暴風域と同化しないよう、文字の周りを黒で太めに縁取り */
       text-shadow: 
         -2px -2px 0 #111317,  
          2px -2px 0 #111317,
@@ -405,10 +410,11 @@
       }
 
       pointsForTube.forEach((p) => {
-        // 💡 予報円・実況の横に「X日(曜日) X時」を描画（validTimeキーを使用）
-        if (p.block && p.block.validTime) {
+        // 💡 実況(dateTime)と予報(validTime)の両方のキーから安全に時間を取得するよう修正
+        const timeStr = p.block.validTime || p.block.dateTime;
+        if (p.block && timeStr) {
           try {
-            const d = new Date(p.block.validTime);
+            const d = new Date(timeStr);
             const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
               timeZone: 'Asia/Tokyo',
               day: 'numeric',
@@ -425,8 +431,8 @@
             const timeIcon = L.divIcon({
               className: 'map-time-label',
               html: timeText,
-              iconSize: [0, 0],
-              iconAnchor: [-20, 12] // マーカーの中心から右側にオフセット
+              iconSize: null, // iconSizeをnullにしてテキスト幅を維持させる
+              iconAnchor: [-24, 10]
             });
 
             L.marker([p.lat, p.lng], { icon: timeIcon, interactive: false }).addTo(map);
@@ -460,8 +466,12 @@
       }
 
       if (latLngs.length > 0) {
-        // 💡 paddingを [260, 260] から [100, 100] に狭めることで、地図をより大きくズームイン表示させます
-        map.fitBounds(L.latLngBounds(latLngs), { padding: [100, 100] });
+        // 💡 ズームの最大値を制限し、かつ右上のテロップ(幅476px)を避けるための非対称パディングにチューニング
+        map.fitBounds(L.latLngBounds(latLngs), {
+          paddingTopLeft: [150, 150],       // 左上の余白
+          paddingBottomRight: [560, 200],   // 右側を大きく空けてテロップ裏への回り込みを防ぐ
+          maxZoom: 6                         // 拡大しすぎを防止（適度な引きの構図にする）
+        });
       }
     }
 
