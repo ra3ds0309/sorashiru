@@ -7,11 +7,15 @@ on:
   workflow_dispatch:
     # 🛠️ 手動実行ボタンを残しておく（テスト用）
 
+# 💡 警告対策：ワークフロー全体（すべてのアクション）でNode.js 24への強制移行を有効化
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     
-    # 💡 エラー128対策：リポジトリへの書き込み権限（git push）を明示的に許可する
+    # リポジトリへの書き込み権限（git push）を明示的に許可
     permissions:
       contents: write
 
@@ -24,7 +28,6 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # 💡 警告対策：Node.js 24 にバージョンをアップ
           node-version: 24
 
       # 3. 必要なパッケージのインストール
@@ -33,12 +36,11 @@ jobs:
           npm init -y
           npm install puppeteer
 
-      # 4. スクショ撮影スクリプトの実行（台風がなければここで自動スキップされます）
+      # 4. スクショ撮影＆Gemini解説スクリプトの実行
       - name: Run script & Notify Discord
         env:
           TYPHOON_WEBHOOK_URL: ${{ secrets.TYPHOON_WEBHOOK_URL }}
-          # 💡 警告対策：Node.js 24 への強制移行をあらかじめ有効化する環境変数
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node capture-typhoon.js
 
       # 5. 撮影された画像がある場合のみ、リポジトリに保存してコミットする
@@ -47,6 +49,5 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add typhoon-screenshots/*.png
-          # 新しい画像がない場合は、エラーを出さずにここで正常終了します
           git commit -m "Update typhoon screenshot [skip ci]" || exit 0
           git push
