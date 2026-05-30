@@ -1,4 +1,4 @@
-name: Typhoon Screenshot Bot
+name: 台風情報
 
 on:
   schedule:
