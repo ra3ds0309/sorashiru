@@ -16,7 +16,7 @@ async function captureAndNotify() {
     fs.mkdirSync(screenshotDir, { recursive: true });
   }
 
-  // タイムスタンプ作成 (ファイル名用)
+  // タイムスタンプ作成
   const now = new Date();
   const timestamp = now.getFullYear() +
     String(now.getMonth() + 1).padStart(2, '0') +
@@ -27,6 +27,18 @@ async function captureAndNotify() {
   
   const filename = `warning_${timestamp}.png`;
   const screenshotPath = path.join(screenshotDir, filename);
+
+  // ==========================================
+  // 🗺️ 【新規】気象庁公式のエリアマスターデータを取得
+  // ==========================================
+  console.log("🗺️ エリアマスターデータを取得中...");
+  let areaMaster = {};
+  try {
+    const areaRes = await fetch("https://www.jma.go.jp/bosai/common/const/area.json");
+    areaMaster = await areaRes.json();
+  } catch (e) {
+    console.error("⚠️ エリアマスターの取得に失敗しました。地域名はコードのまま表示されます:", e);
+  }
 
   // ==========================================
   // 📊 2. 気象データのリアルタイム解析・テキスト作成
@@ -72,7 +84,6 @@ async function captureAndNotify() {
     return;
   }
 
-  // ランクごとの地域別発表情報格納用
   const rankData = { 5: {}, 4: {}, 3: {}, 2: {} };
 
   // 各JSONデータの取得とパース
@@ -83,7 +94,6 @@ async function captureAndNotify() {
         const response = await fetch(`${jsonPath}?_=${Date.now()}`);
         provData = await response.json();
       } else {
-        // ローカルパスまたは気象庁URLの自動判定
         let localPath = path.join(__dirname, jsonPath);
         if (!fs.existsSync(localPath)) {
           localPath = path.join(__dirname, 'assets', 'warning', jsonPath);
@@ -101,28 +111,35 @@ async function captureAndNotify() {
       const reports = Array.isArray(provData) ? provData : [provData];
       
       reports.forEach(report => {
-        if (!report || !report.areaTypes) return;
+        if (!report || !report.areaTypes || report.areaTypes.length === 0) return;
         
-        report.areaTypes.forEach(type => {
-          if (!type.areas) return;
-          
-          type.areas.forEach(area => {
-            const areaCode = area.code || (area.area && area.area.code);
-            const areaName = area.name || (area.area && area.area.name) || areaCode;
-            
-            if (!areaCode || !area.warnings) return;
+        // ★ 修正：市町村(areaTypes[1])は無視し、一次細分区域(areaTypes[0])のみを対象にする
+        const primaryAreaType = report.areaTypes[0];
+        if (!primaryAreaType || !primaryAreaType.areas) return;
+        
+        primaryAreaType.areas.forEach(area => {
+          const areaCode = area.code || (area.area && area.area.code);
+          if (!areaCode || !area.warnings) return;
 
-            area.warnings.forEach(warn => {
-              if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
-                const meta = codeMap[warn.code];
-                if (meta && rankData[meta.rank]) {
-                  if (!rankData[meta.rank][areaName]) {
-                    rankData[meta.rank][areaName] = new Set();
-                  }
-                  rankData[meta.rank][areaName].add(meta.name);
+          // ★ 【新規】エリアマスターから「静岡県」＋「中部」のような日本語名を自動生成
+          let areaName = areaCode;
+          if (areaMaster.class10s && areaMaster.class10s[areaCode]) {
+            const class10 = areaMaster.class10s[areaCode];
+            const parentCode = class10.parent; // 親（府県予報区コード、例: 220000）
+            const parentName = (areaMaster.offices && areaMaster.offices[parentCode]) ? areaMaster.offices[parentCode].name : "";
+            areaName = parentName + class10.name; // 例: 「静岡県」＋「中部」＝「静岡県中部」
+          }
+
+          area.warnings.forEach(warn => {
+            if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
+              const meta = codeMap[warn.code];
+              if (meta && rankData[meta.rank]) {
+                if (!rankData[meta.rank][areaName]) {
+                  rankData[meta.rank][areaName] = new Set();
                 }
+                rankData[meta.rank][areaName].add(meta.name);
               }
-            });
+            }
           });
         });
       });
@@ -158,9 +175,8 @@ async function captureAndNotify() {
     }
   });
 
-  contentText = contentText.trim(); // 末尾の余分な改行をカット
+  contentText = contentText.trim();
 
-  // Discordの文字数制限(2000文字)対策
   if (contentText.length > 2000) {
     contentText = contentText.substring(0, 1950) + "\n...（文字数超過のため省略）";
   }
@@ -200,7 +216,7 @@ async function captureAndNotify() {
     await browser.close();
 
     // ==========================================
-    // 🚀 4. Discord Webhook 送信 (メッセージ＋画像)
+    // 🚀 4. Discord Webhook 送信
     // ==========================================
     console.log("🚀 Discordへメッセージと画像を送信中...");
     const imageBuffer = fs.readFileSync(screenshotPath);
@@ -209,7 +225,6 @@ async function captureAndNotify() {
     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
     formData.append('files[0]', imageBlob, filename);
 
-    // 生成した見やすいテキストを content に指定
     const payload = {
       username: "そらしる警報注意報",
       content: contentText
