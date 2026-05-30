@@ -19,7 +19,7 @@
       font-family: 'Noto Sans JP', sans-serif;
     }
 
-    /* 💡 16:9 全面に新しい背景画像 cover.png を表示 */
+    /* 💡 16:9 全面に背景画像を表示 */
     .viewport {
       width: 1920px;
       height: 1080px;
@@ -31,10 +31,10 @@
       background-repeat: no-repeat;
     }
 
-    /* 🗺️ 地図レイヤーの絶対配置スタック */
+    /* 🗺️ 地図レイヤーの絶対配置スタック（100%×100%で全面に重なるよう修正） */
     .map-layer {
-      width: 1920px;
-      height: 1080px;
+      width: 100%;
+      height: 100%;
       position: absolute;
       top: 0;
       left: 0;
@@ -49,7 +49,7 @@
       height: 100%;
     }
     #iskt-layer path, #iskt-layer polygon {
-      fill: rgba(255, 255, 255, 0.05); /* デフォルト（発表なし）はうっすら透過 */
+      fill: rgba(255, 255, 255, 0.05); /* デフォルト（発表なし・平常時）は薄いグレー */
       stroke: rgba(255, 255, 255, 0.15);
       stroke-width: 1.2px;
       transition: fill 0.5s ease;      /* 色が変わるときにじんわり変化 */
@@ -70,42 +70,6 @@
       stroke-width: 1.8px;
       opacity: 0.4;
     }
-
-    /* UIオーバーレイ（凡例のみ） */
-    .ui-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 1920px;
-      height: 1080px;
-      z-index: 3;
-      pointer-events: none;
-      padding: 60px;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end; /* 下部に寄せる */
-    }
-
-    /* 左下凡例 */
-    .legend-panel {
-      background: rgba(11, 13, 23, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 16px 24px;
-      align-self: flex-start;
-      backdrop-filter: blur(8px);
-    }
-    .legend-title { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 8px; font-weight: 700; }
-    .legend-items { display: flex; gap: 14px; }
-    .legend-box { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; }
-    .color-chip { width: 20px; height: 20px; border-radius: 4px; }
-    
-    /* 防災警戒レベルカラーシステム（凡例用） */
-    .c-lvl5 { background: #701a75; }
-    .c-lvl4 { background: #c084fc; }
-    .c-lvl3 { background: #ef4444; }
-    .c-lvl2 { background: #eab308; }
-    .c-lvl1 { background: #64748b; }
   </style>
 </head>
 <body>
@@ -113,48 +77,39 @@
   <div class="viewport">
     <div id="iskt-layer" class="map-layer"></div>
     <div id="pref-layer" class="map-layer"></div>
-
-    <div class="ui-overlay">
-      <div class="legend-panel">
-        <div class="legend-title">新基準 警戒レベル</div>
-        <div class="legend-items">
-          <div class="legend-box"><div class="color-chip c-lvl5"></div><span>レベル5(特別)</span></div>
-          <div class="legend-box"><div class="color-chip c-lvl4"></div><span>レベル4(危険)</span></div>
-          <div class="legend-box"><div class="color-chip c-lvl3"></div><span>レベル3(警報)</span></div>
-          <div class="legend-box"><div class="color-chip c-lvl2"></div><span>レベル2(注意)</span></div>
-          <div class="legend-box"><div class="color-chip c-lvl1"></div><span>レベル1(早期)</span></div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
     let codeMap = {};        // 警報コード -> { name, color, rank }
     let areaStatusMap = {};   // エリアコード -> 最大警戒情報のオブジェクト
 
+    // ⚡【キャッシュ対策】URLの末尾にタイムスタンプを付与してブラウザキャッシュを強制破壊する関数
+    function getCacheBusterUrl(url) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}_=${Date.now()}`;
+    }
+
     // 1. 各種SVGファイルを非同期で読み込んでレイヤーに流し込む
     async function loadMapSVGs() {
       try {
-        // 一次細分区域等のSVGを読み込み
-        const isktResponse = await fetch('assets/warning/iskt.svg');
+        const isktResponse = await fetch(getCacheBusterUrl('assets/warning/iskt.svg'), { cache: 'no-store' });
         const isktSvgText = await isktResponse.text();
         document.getElementById('iskt-layer').innerHTML = isktSvgText;
 
-        // 都道府県枠線のみのSVGを読み込み
-        const prefResponse = await fetch('assets/warning/pref.svg');
+        const prefResponse = await fetch(getCacheBusterUrl('assets/warning/pref.svg'), { cache: 'no-store' });
         const prefSvgText = await prefResponse.text();
         document.getElementById('pref-layer').innerHTML = prefSvgText;
 
-        console.log("SVG地図のインジェクションに成功しました");
+        console.log("SVG地図の読み込み・配置が完了しました");
       } catch (e) {
         console.error("SVG地図の読み込みに失敗しました:", e);
       }
     }
 
-    // 2. code.txt の読み込みと新フォーマットのパース
+    // 2. code.txt の読み込みとパース
     async function loadCodeTable() {
       try {
-        const response = await fetch('assets/warning/code.txt');
+        const response = await fetch(getCacheBusterUrl('assets/warning/code.txt'), { cache: 'no-store' });
         const text = await response.text();
         const lines = text.split('\n');
         
@@ -162,54 +117,52 @@
           line = line.trim();
           if (!line) return;
 
-          // 「コード:名前[#カラーコード]」を正規表現で安全に分離抽出
           const match = line.match(/^([^:]+):([^\[]+)\[#([^\]]+)\]/);
           if (match) {
             const code = match[1].trim();
             const name = match[2].trim();
             let color = match[3].trim();
             
-            // カラーコードの頭に # が付いていなければ付与
             if (!color.startsWith('#')) {
               color = '#' + color;
             }
 
-            // 同一エリアで複数の警報が出た時、どれを最優先（最大レベル）にするかの危険度ランク
             let rank = 0;
             if (name.includes('特別警報') || name.includes('レベル5')) rank = 5;
             else if (name.includes('レベル4')) rank = 4;
             else if (name.includes('警報') || name.includes('レベル3')) rank = 3;
             else if (name.includes('注意報') || name.includes('レベル2')) rank = 2;
             else if (name.includes('早期') || name.includes('レベル1')) rank = 1;
-            else if (name.includes('解除')) rank = 0; // 解除は一番低い優先度
+            else if (name.includes('解除')) rank = 0;
 
             codeMap[code] = { name, color, rank };
           }
         });
-        console.log("code.txt のパースが完了しました:", codeMap);
       } catch (e) {
         console.error("code.txt の読み込みに失敗しました:", e);
       }
     }
 
-    // 3. list.txt にある54個すべての気象庁JSONデータを巡回パースして集約
+    // 3. list.txt にある気象庁JSONデータをリアルタイム巡回パースして集約
     async function loadWarningData() {
       try {
-        const response = await fetch('assets/warning/list.txt');
+        const response = await fetch(getCacheBusterUrl('assets/warning/list.txt'), { cache: 'no-store' });
         const text = await response.text();
-        // 空白行を排除してURLの配列を生成
         const jsonPaths = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
 
-        // 54個のフェッチを並列で一気に実行（超高速化）
+        // すべてのフェッチに cache: 'no-store' と タイムスタンプを適用して完全リアルタイム化
         const jsonPromises = jsonPaths.map(path => 
-          fetch(path)
+          fetch(getCacheBusterUrl(path), { cache: 'no-store' })
             .then(res => res.json())
             .catch(err => {
               console.error(`気象データ取得失敗: ${path}`, err);
-              return null; // エラーが出た拠点はスキップして処理を継続
+              return null;
             })
         );
         const allData = await Promise.all(jsonPromises);
+
+        // 読み込みごとにマップを完全クリア
+        areaStatusMap = {};
 
         allData.forEach(provData => {
           if (!provData || !provData.areaTypes) return;
@@ -218,14 +171,14 @@
             if (!type.areas) return;
             
             type.areas.forEach(area => {
-              const areaCode = area.code; // SVG内の id と紐づくコード（例: "011000"）
+              const areaCode = area.code; 
               let maxRank = -1;
               let highestWarning = null;
 
               if (area.warnings) {
                 area.warnings.forEach(warn => {
-                  // statusが「発表」または「継続」のものを対象とする
-                  if (warn.status === "発表" || warn.status === "継続") {
+                  // 「発表」「継続」に加え、警報から注意報への「切替」タイミングも確実にキャッチ
+                  if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
                     const meta = codeMap[warn.code];
                     if (meta) {
                       if (meta.rank > maxRank) {
@@ -237,7 +190,6 @@
                 });
               }
 
-              // すでに他のデータで高い危険度ランクが登録されていない場合のみ上書き
               if (maxRank >= 0 && highestWarning) {
                 if (!areaStatusMap[areaCode] || areaStatusMap[areaCode].rank < maxRank) {
                   areaStatusMap[areaCode] = {
@@ -250,37 +202,46 @@
             });
           });
         });
-        console.log("解析された全国地域ステータス:", areaStatusMap);
       } catch (e) {
         console.error("気象データの取得・解析に失敗しました:", e);
       }
     }
 
-    // 4. 集約したデータを元に、SVGの要素に直接色を適用する
+    // 4. 集約したデータを元に、SVGの要素に色を適用する
     function applyColorsToSVG() {
+      const isktContainer = document.getElementById('iskt-layer');
+      if (!isktContainer) return;
+
+      // 🛠️【データの食い違い対策の核心】
+      // 新しく色を塗る前に、一度すべての地域（path, polygon）のインライン fill を完全にリセットします。
+      // これにより、データから注意報が消えた（平常時に戻った）地域が、古い色のまま居座るのを防ぎ、
+      // CSSで設定したデフォルトの薄いグレー（rgba(255,255,255,0.05)）に綺麗に戻るようになります。
+      const allPaths = isktContainer.querySelectorAll('path, polygon');
+      allPaths.forEach(el => {
+        el.style.fill = ''; 
+      });
+
+      // 現在発表されている地域のみ、最新データの色で上書き着色
       Object.keys(areaStatusMap).forEach(areaCode => {
-        // assets/warning/iskt.svg の中に記述されている id="..." を直接検索して色塗り
         const element = document.getElementById(areaCode);
         if (element) {
           const status = areaStatusMap[areaCode];
-          // code.txt からパースされたカラーコードを一括適用
           element.style.fill = status.color;
         }
       });
+      console.log("最新の気象情報を地図に反映しました。");
     }
 
-    // メインフロー起動（すべての非同期読み込みをコントロール）
+    // メインフロー起動
     window.addEventListener('DOMContentLoaded', async () => {
-      // SVGの配置とマスターデータのパースを同時に進める
+      // SVGとコードテーブルのパースを並列実行
       await Promise.all([
         loadMapSVGs(),
         loadCodeTable()
       ]);
       
-      // リアルタイム気象情報の巡回解析
+      // リアルタイムデータの取得と色塗り
       await loadWarningData();
-      
-      // 地図への色塗り適用
       applyColorsToSVG();
     });
   </script>
