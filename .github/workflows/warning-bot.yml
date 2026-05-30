@@ -1,4 +1,4 @@
-name: Capture and Notify Warning Map
+name: 警報・注意報
 
 on:
   schedule:
