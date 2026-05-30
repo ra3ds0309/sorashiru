@@ -29,15 +29,27 @@ async function captureAndNotify() {
   const screenshotPath = path.join(screenshotDir, filename);
 
   // ==========================================
-  // 🗺️ 【新規】気象庁公式のエリアマスターデータを取得
+  // 🗺️ 【更新】assets/warning/name.txt からエリアマスターを読込
   // ==========================================
-  console.log("🗺️ エリアマスターデータを取得中...");
-  let areaMaster = {};
+  console.log("🗺️ name.txt からエリアマスターを読み込み中...");
+  const nameMap = {};
   try {
-    const areaRes = await fetch("https://www.jma.go.jp/bosai/common/const/area.json");
-    areaMaster = await areaRes.json();
+    const namePath = path.join(__dirname, 'assets/warning/name.txt');
+    const text = fs.readFileSync(namePath, 'utf8');
+    text.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      
+      // 「コード[地域名]」の形式を正規表現で切り出し
+      const match = line.match(/^([0-9]+)\[([^\]]+)\]/);
+      if (match) {
+        const code = match[1].trim();
+        const name = match[2].trim();
+        nameMap[code] = name;
+      }
+    });
   } catch (e) {
-    console.error("⚠️ エリアマスターの取得に失敗しました。地域名はコードのまま表示されます:", e);
+    console.error("❌ name.txt の読み込みに失敗しました。地域名はコードのまま表示されます:", e);
   }
 
   // ==========================================
@@ -113,7 +125,7 @@ async function captureAndNotify() {
       reports.forEach(report => {
         if (!report || !report.areaTypes || report.areaTypes.length === 0) return;
         
-        // ★ 修正：市町村(areaTypes[1])は無視し、一次細分区域(areaTypes[0])のみを対象にする
+        // 一次細分区域(areaTypes[0])のみを対象にする
         const primaryAreaType = report.areaTypes[0];
         if (!primaryAreaType || !primaryAreaType.areas) return;
         
@@ -121,14 +133,8 @@ async function captureAndNotify() {
           const areaCode = area.code || (area.area && area.area.code);
           if (!areaCode || !area.warnings) return;
 
-          // ★ 【新規】エリアマスターから「静岡県」＋「中部」のような日本語名を自動生成
-          let areaName = areaCode;
-          if (areaMaster.class10s && areaMaster.class10s[areaCode]) {
-            const class10 = areaMaster.class10s[areaCode];
-            const parentCode = class10.parent; // 親（府県予報区コード、例: 220000）
-            const parentName = (areaMaster.offices && areaMaster.offices[parentCode]) ? areaMaster.offices[parentCode].name : "";
-            areaName = parentName + class10.name; // 例: 「静岡県」＋「中部」＝「静岡県中部」
-          }
+          // ★ 【更新】name.txt から読み込んだ地域名を使用（見つからなければ予備でコード表示）
+          const areaName = nameMap[areaCode] || areaCode;
 
           area.warnings.forEach(warn => {
             if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
