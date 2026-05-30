@@ -222,4 +222,15 @@ async function captureAndNotify() {
     });
 
     if (res.ok) {
-      console.log("✅ Discordへの通知が正常に完了しました！
+      console.log("✅ Discordへの通知が正常に完了しました！");
+    } else {
+      console.error(`❌ Discordへの送信に失敗しました: ${res.status} ${res.statusText}`);
+    }
+
+  } catch (error) {
+    console.error("❌ 処理中にエラーが発生しました:", error);
+    if (browser) await browser.close();
+  }
+}
+
+captureAndNotify();
