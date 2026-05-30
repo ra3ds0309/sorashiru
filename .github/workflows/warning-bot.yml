@@ -2,7 +2,7 @@ name: Capture and Notify Warning Map
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # 5分ごとに自動実行
+    - cron: '0 21 * * *'  # 毎日日本時間朝6時（UTC 21:00）に自動実行
   workflow_dispatch:      # GitHub画面から手動で即時実行するボタンも有効化
 
 jobs:
