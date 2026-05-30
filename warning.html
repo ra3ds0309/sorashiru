@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght=700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght=700;900&family=Roboto:wght=400&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,11 +64,26 @@
       background-position: center;
       background-repeat: no-repeat;
     }
+
+    /* 📝 コピーライト用の共有CSSスタイル */
+    .copyright-tag {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      color: rgba(255, 255, 255, 0.1);
+      font-family: 'Roboto', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      z-index: 4;
+    }
   </style>
 </head>
 <body>
 
   <div class="viewport">
+    <div class="copyright-tag">© Sorashiru</div>
+
     <div id="iskt-layer" class="map-layer"></div>
     <div id="pref-layer" class="map-layer"></div>
   </div>
