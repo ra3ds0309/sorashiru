@@ -1,4 +1,4 @@
-name: Take Weather Screenshot and Notify Discord
+name: 天気予報
 
 on:
   schedule:
