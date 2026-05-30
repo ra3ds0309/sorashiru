@@ -19,7 +19,7 @@
       font-family: 'Noto Sans JP', sans-serif;
     }
 
-    /* 💡 16:9 全面に背景画像を表示 */
+    /* 16:9 全面に背景画像を表示 */
     .viewport {
       width: 1920px;
       height: 1080px;
@@ -31,7 +31,7 @@
       background-repeat: no-repeat;
     }
 
-    /* 🗺️ 地図レイヤーの絶対配置スタック（100%×100%で全面に重なるよう修正） */
+    /* 地図レイヤーの絶対配置スタック（100%×100%で全面に重なるよう修正） */
     .map-layer {
       width: 100%;
       height: 100%;
@@ -40,7 +40,7 @@
       left: 0;
     }
 
-    /* 【下層】一次細分区域（コードによる色塗り対象） */
+    /* 【下層】一次細分区域（コードによる色塗り対象のSVG） */
     #iskt-layer {
       z-index: 1;
     }
@@ -49,26 +49,20 @@
       height: 100%;
     }
     #iskt-layer path, #iskt-layer polygon {
-      fill: rgba(255, 255, 255, 0.05); /* デフォルト（発表なし・平常時）は薄いグレー */
+      fill: rgba(255, 255, 255, 0.05); /* デフォルト（平常時）は薄いグレー */
       stroke: rgba(255, 255, 255, 0.15);
       stroke-width: 1.2px;
       transition: fill 0.5s ease;      /* 色が変わるときにじんわり変化 */
     }
 
-    /* 【上層】都道府県枠線（最前面に重ねる白線） */
+    /* 🎨【上層】都道府県枠線（pref.png を100%x100%でぴったり背景重ね合わせ） */
     #pref-layer {
       z-index: 2;
       pointer-events: none; /* マウスイベントなどを透過 */
-    }
-    #pref-layer svg {
-      width: 100%;
-      height: 100%;
-    }
-    #pref-layer path, #pref-layer polygon {
-      fill: none !important; /* 塗りつぶしは絶対に透明 */
-      stroke: #ffffff;       /* くっきりした白い県境線 */
-      stroke-width: 1.8px;
-      opacity: 0.4;
+      background-image: url('assets/warning/pref.png');
+      background-size: 100% 100%; /* 16:9のキャンバスにジャストフィット */
+      background-position: center;
+      background-repeat: no-repeat;
     }
   </style>
 </head>
@@ -83,24 +77,20 @@
     let codeMap = {};        // 警報コード -> { name, color, rank }
     let areaStatusMap = {};   // エリアコード -> 最大警戒情報のオブジェクト
 
-    // ⚡【キャッシュ対策】URLの末尾にタイムスタンプを付与してブラウザキャッシュを強制破壊する関数
+    // キャッシュ対策：タイムスタンプを付与してブラウザキャッシュを強制破壊
     function getCacheBusterUrl(url) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}_=${Date.now()}`;
     }
 
-    // 1. 各種SVGファイルを非同期で読み込んでレイヤーに流し込む
+    // 1. 各種地図ファイルを配置する（pref.svgの非同期fetchは削除し軽量化）
     async function loadMapSVGs() {
       try {
         const isktResponse = await fetch(getCacheBusterUrl('assets/warning/iskt.svg'), { cache: 'no-store' });
         const isktSvgText = await isktResponse.text();
         document.getElementById('iskt-layer').innerHTML = isktSvgText;
 
-        const prefResponse = await fetch(getCacheBusterUrl('assets/warning/pref.svg'), { cache: 'no-store' });
-        const prefSvgText = await prefResponse.text();
-        document.getElementById('pref-layer').innerHTML = prefSvgText;
-
-        console.log("SVG地図の読み込み・配置が完了しました");
+        console.log("地図レイヤーの初期配置が完了しました（県境線はpref.pngを使用）");
       } catch (e) {
         console.error("SVG地図の読み込みに失敗しました:", e);
       }
@@ -143,14 +133,13 @@
       }
     }
 
-    // 3. list.txt にある気象庁JSONデータをリアルタイム巡回パースして集約
+    // 3. 気象庁データをリアルタイムパースして集約（★ハイブリッド超同期化）
     async function loadWarningData() {
       try {
         const response = await fetch(getCacheBusterUrl('assets/warning/list.txt'), { cache: 'no-store' });
         const text = await response.text();
         const jsonPaths = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
 
-        // すべてのフェッチに cache: 'no-store' と タイムスタンプを適用して完全リアルタイム化
         const jsonPromises = jsonPaths.map(path => 
           fetch(getCacheBusterUrl(path), { cache: 'no-store' })
             .then(res => res.json())
@@ -165,30 +154,25 @@
         areaStatusMap = {};
 
         allData.forEach(provData => {
-          if (!provData || !provData.areaTypes) return;
+          if (!provData) return;
           
-          provData.areaTypes.forEach(type => {
-            if (!type.areas) return;
-            
-            type.areas.forEach(area => {
-              const areaCode = area.code; 
+          // ─── 【パターンA】気象庁公式の超リアルタイム全国一括JSON（配列構造）の場合 ───
+          if (Array.isArray(provData)) {
+            provData.forEach(area => {
+              const areaCode = area.code;
+              if (!area.warningCodes) return;
+
               let maxRank = -1;
               let highestWarning = null;
 
-              if (area.warnings) {
-                area.warnings.forEach(warn => {
-                  // 「発表」「継続」に加え、警報から注意報への「切替」タイミングも確実にキャッチ
-                  if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
-                    const meta = codeMap[warn.code];
-                    if (meta) {
-                      if (meta.rank > maxRank) {
-                        maxRank = meta.rank;
-                        highestWarning = meta;
-                      }
-                    }
-                  }
-                });
-              }
+              area.warningCodes.forEach(warn => {
+                // 全国一括JSON内のコードは「現在100%有効な発表」のみが並ぶためステータス判定不要
+                const meta = codeMap[warn.code];
+                if (meta && meta.rank > maxRank) {
+                  maxRank = meta.rank;
+                  highestWarning = meta;
+                }
+              });
 
               if (maxRank >= 0 && highestWarning) {
                 if (!areaStatusMap[areaCode] || areaStatusMap[areaCode].rank < maxRank) {
@@ -200,7 +184,41 @@
                 }
               }
             });
-          });
+          } 
+          // ─── 【パターンB】従来の府県別個別JSON（オブジェクト構造）の場合 ───
+          else if (provData.areaTypes) {
+            provData.areaTypes.forEach(type => {
+              if (!type.areas) return;
+              
+              type.areas.forEach(area => {
+                const areaCode = area.code; 
+                let maxRank = -1;
+                let highestWarning = null;
+
+                if (area.warnings) {
+                  area.warnings.forEach(warn => {
+                    if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
+                      const meta = codeMap[warn.code];
+                      if (meta && meta.rank > maxRank) {
+                        maxRank = meta.rank;
+                        highestWarning = meta;
+                      }
+                    }
+                  });
+                }
+
+                if (maxRank >= 0 && highestWarning) {
+                  if (!areaStatusMap[areaCode] || areaStatusMap[areaCode].rank < maxRank) {
+                    areaStatusMap[areaCode] = {
+                      rank: maxRank,
+                      color: highestWarning.color,
+                      name: highestWarning.name
+                    };
+                  }
+                }
+              });
+            });
+          }
         });
       } catch (e) {
         console.error("気象データの取得・解析に失敗しました:", e);
@@ -212,35 +230,26 @@
       const isktContainer = document.getElementById('iskt-layer');
       if (!isktContainer) return;
 
-      // 🛠️【データの食い違い対策の核心】
-      // 新しく色を塗る前に、一度すべての地域（path, polygon）のインライン fill を完全にリセットします。
-      // これにより、データから注意報が消えた（平常時に戻った）地域が、古い色のまま居座るのを防ぎ、
-      // CSSで設定したデフォルトの薄いグレー（rgba(255,255,255,0.05)）に綺麗に戻るようになります。
+      // 一度すべての地域の色をリセット
       const allPaths = isktContainer.querySelectorAll('path, polygon');
-      allPaths.forEach(el => {
-        el.style.fill = ''; 
-      });
+      allPaths.forEach(el => { el.style.fill = ''; });
 
-      // 現在発表されている地域のみ、最新データの色で上書き着色
+      // 最新データの色で上書き
       Object.keys(areaStatusMap).forEach(areaCode => {
         const element = document.getElementById(areaCode);
         if (element) {
-          const status = areaStatusMap[areaCode];
-          element.style.fill = status.color;
+          element.style.fill = areaStatusMap[areaCode].color;
         }
       });
-      console.log("最新の気象情報を地図に反映しました。");
+      console.log("最新の気象情報を地図に同期しました。");
     }
 
     // メインフロー起動
     window.addEventListener('DOMContentLoaded', async () => {
-      // SVGとコードテーブルのパースを並列実行
       await Promise.all([
         loadMapSVGs(),
         loadCodeTable()
       ]);
-      
-      // リアルタイムデータの取得と色塗り
       await loadWarningData();
       applyColorsToSVG();
     });
