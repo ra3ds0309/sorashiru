@@ -29,7 +29,6 @@ async function captureAndNotify() {
   const screenshotPath = path.join(screenshotDir, filename);
 
   console.log("🌐 ブラウザを起動中...");
-  // ローカルファイルの読み込み制限(CORS)を回避するオプションを追加
   const browser = await puppeteer.launch({
     headless: "new",
     args: [
@@ -40,7 +39,7 @@ async function captureAndNotify() {
   });
 
   try {
-    const page = await browser.navigate ? await browser.newPage() : await browser.newPage();
+    const page = await browser.newPage();
     // 画面サイズを 16:9 (1920x1080) に固定
     await page.setViewport({ width: 1920, height: 1080 });
 
@@ -54,7 +53,7 @@ async function captureAndNotify() {
     console.log(`📄 ページを読み込み中: ${fileUrl}`);
     await page.goto(fileUrl, { waitUntil: 'networkidle2' });
 
-    // 気象庁JSONの取得とSVGの色塗りが完了するまで、安全のため3秒間待機
+    // データの反映を待つ（3秒）
     console.log("⏳ データの反映を待っています (3秒)...");
     await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -64,43 +63,30 @@ async function captureAndNotify() {
 
     await browser.close();
 
-    // 3. Discordへ画像付きでWebhook送信
+    // 3. Discordへ画像付きでWebhook送信 (埋め込みなし・通常メッセージ形式)
     console.log("🚀 Discordへメッセージと画像を送信中...");
     const imageBuffer = fs.readFileSync(screenshotPath);
     
     // FormDataの組み立て
     const formData = new FormData();
-    // 画像ファイルを添付 (Discord側で引数名 files[0] として認識されます)
     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
     formData.append('files[0]', imageBlob, filename);
 
-    // テキストやEmbedの設定 (画像を表示させるために attachment:// を使用)
+    // ★埋め込み(embeds)を廃止し、通常のメッセージ(content)として送信
     const payload = {
       username: "そらしる警報注意報",
-      embeds: [
-        {
-          title: "⚠️ 【気象警報・注意報】現在の地図状況",
-          color: 15105570, // オレンジ色
-          image: {
-            url: `attachment://${filename}`
-          },
-          timestamp: new Date().toISOString(),
-          footer: {
-            text: "そらしる防災システム (自動配信)"
-          }
-        }
-      ]
+      content: `⚠️ **【気象警報・注意報】現在の地図状況**`
     };
     formData.append('payload_json', JSON.stringify(payload));
 
     // Webhookの実行
     const res = await fetch(webhookUrl, {
       method: 'POST',
-      body: formData // Content-Typeは自動設定されるため指定不要
+      body: formData // Content-Typeは自動設定されます
     });
 
     if (res.ok) {
-      console.log("✅ Discordへの通知が正常に完了しました！");
+      console.log("✅ Discordへの通常メッセージ通知が正常に完了しました！");
     } else {
       console.error(`❌ Discordへの送信に失敗しました: ${res.status} ${res.statusText}`);
     }
