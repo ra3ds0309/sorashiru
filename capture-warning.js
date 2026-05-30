@@ -16,7 +16,7 @@ async function captureAndNotify() {
     fs.mkdirSync(screenshotDir, { recursive: true });
   }
 
-  // タイムスタンプ作成 (ファイル名用: YYYYMMDD_HHMMSS)
+  // タイムスタンプ作成 (ファイル名用)
   const now = new Date();
   const timestamp = now.getFullYear() +
     String(now.getMonth() + 1).padStart(2, '0') +
@@ -28,6 +28,146 @@ async function captureAndNotify() {
   const filename = `warning_${timestamp}.png`;
   const screenshotPath = path.join(screenshotDir, filename);
 
+  // ==========================================
+  // 📊 2. 気象データのリアルタイム解析・テキスト作成
+  // ==========================================
+  console.log("📊 気象データを解析中...");
+  
+  // code.txt の読み込みとランク判定
+  const codeMap = {};
+  try {
+    const codePath = path.join(__dirname, 'assets/warning/code.txt');
+    const text = fs.readFileSync(codePath, 'utf8');
+    text.split('\n').forEach(line => {
+      line = line.trim();
+      if (!line) return;
+      
+      const match = line.match(/^([^:]+):([^\[]+)\[#([^\]]+)\]/);
+      if (match) {
+        const code = match[1].trim();
+        const name = match[2].trim();
+        
+        let rank = 0;
+        if (name.includes('特別警報') || name.includes('レベル5')) rank = 5;
+        else if (name.includes('危険') || name.includes('レベル4')) rank = 4;
+        else if (name.includes('警報') || name.includes('レベル3')) rank = 3;
+        else if (name.includes('注意報') || name.includes('レベル2')) rank = 2;
+        
+        codeMap[code] = { name, rank };
+      }
+    });
+  } catch (e) {
+    console.error("❌ code.txt の読み込みに失敗しました:", e);
+    return;
+  }
+
+  // list.txt の読み込み
+  let jsonPaths = [];
+  try {
+    const listPath = path.join(__dirname, 'assets/warning/list.txt');
+    const text = fs.readFileSync(listPath, 'utf8');
+    jsonPaths = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+  } catch (e) {
+    console.error("❌ list.txt の読み込みに失敗しました:", e);
+    return;
+  }
+
+  // ランクごとの地域別発表情報格納用
+  const rankData = { 5: {}, 4: {}, 3: {}, 2: {} };
+
+  // 各JSONデータの取得とパース
+  for (const jsonPath of jsonPaths) {
+    try {
+      let provData;
+      if (jsonPath.startsWith('http')) {
+        const response = await fetch(`${jsonPath}?_=${Date.now()}`);
+        provData = await response.json();
+      } else {
+        // ローカルパスまたは気象庁URLの自動判定
+        let localPath = path.join(__dirname, jsonPath);
+        if (!fs.existsSync(localPath)) {
+          localPath = path.join(__dirname, 'assets', 'warning', jsonPath);
+        }
+        
+        if (fs.existsSync(localPath)) {
+          provData = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+        } else {
+          const url = `https://www.jma.go.jp/bosai/warning/data/warning/${jsonPath}`;
+          const response = await fetch(`${url}?_=${Date.now()}`);
+          provData = await response.json();
+        }
+      }
+
+      const reports = Array.isArray(provData) ? provData : [provData];
+      
+      reports.forEach(report => {
+        if (!report || !report.areaTypes) return;
+        
+        report.areaTypes.forEach(type => {
+          if (!type.areas) return;
+          
+          type.areas.forEach(area => {
+            const areaCode = area.code || (area.area && area.area.code);
+            const areaName = area.name || (area.area && area.area.name) || areaCode;
+            
+            if (!areaCode || !area.warnings) return;
+
+            area.warnings.forEach(warn => {
+              if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
+                const meta = codeMap[warn.code];
+                if (meta && rankData[meta.rank]) {
+                  if (!rankData[meta.rank][areaName]) {
+                    rankData[meta.rank][areaName] = new Set();
+                  }
+                  rankData[meta.rank][areaName].add(meta.name);
+                }
+              }
+            });
+          });
+        });
+      });
+    } catch (e) {
+      console.error(`❌ 気象データの解析に失敗しました (${jsonPath}):`, e);
+    }
+  }
+
+  // 指定フォーマットでテキストを組み立て
+  let contentText = `**【現在の警報・注意報】**\n現在発表されている警報・注意報をお伝えします。\n\n`;
+
+  const categories = [
+    { rank: 5, label: "特別警報" },
+    { rank: 4, label: "危険警報" },
+    { rank: 3, label: "警報" },
+    { rank: 2, label: "注意報" }
+  ];
+
+  categories.forEach(cat => {
+    contentText += `＜${cat.label}＞\n`;
+    const areas = Object.keys(rankData[cat.rank]);
+    
+    if (areas.length === 0) {
+      contentText += `現在、発表されていません。\n\n`;
+    } else {
+      areas.forEach(areaName => {
+        const warns = Array.from(rankData[cat.rank][areaName]);
+        if (warns.length > 0) {
+          contentText += `${areaName}：${warns.join('、')}\n`;
+        }
+      });
+      contentText += `\n`;
+    }
+  });
+
+  contentText = contentText.trim(); // 末尾の余分な改行をカット
+
+  // Discordの文字数制限(2000文字)対策
+  if (contentText.length > 2000) {
+    contentText = contentText.substring(0, 1950) + "\n...（文字数超過のため省略）";
+  }
+
+  // ==========================================
+  // 🌐 3. ブラウザ起動・スクリーンショット撮影
+  // ==========================================
   console.log("🌐 ブラウザを起動中...");
   const browser = await puppeteer.launch({
     headless: "new",
@@ -40,10 +180,8 @@ async function captureAndNotify() {
 
   try {
     const page = await browser.newPage();
-    // 画面サイズを 16:9 (1920x1080) に固定
     await page.setViewport({ width: 1920, height: 1080 });
 
-    // 2. warning.html を絶対パスのファイルURLに変換して読み込み
     const htmlPath = path.join(__dirname, 'warning.html');
     if (!fs.existsSync(htmlPath)) {
       throw new Error(`warning.html が見つかりません: ${htmlPath}`);
@@ -53,48 +191,35 @@ async function captureAndNotify() {
     console.log(`📄 ページを読み込み中: ${fileUrl}`);
     await page.goto(fileUrl, { waitUntil: 'networkidle2' });
 
-    // データの反映を待つ（3秒）
-    console.log("⏳ データの反映を待っています (3秒)...");
+    console.log("⏳ 地図の描画待機中 (3秒)...");
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // スクリーンショットを撮影してフォルダに保存
     await page.screenshot({ path: screenshotPath, fullPage: false });
     console.log(`📸 スクリーンショットを保存しました: ${screenshotPath}`);
 
     await browser.close();
 
-    // 3. Discordへ画像付きでWebhook送信 (埋め込みなし・通常メッセージ形式)
+    // ==========================================
+    // 🚀 4. Discord Webhook 送信 (メッセージ＋画像)
+    // ==========================================
     console.log("🚀 Discordへメッセージと画像を送信中...");
     const imageBuffer = fs.readFileSync(screenshotPath);
     
-    // FormDataの組み立て
     const formData = new FormData();
     const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
     formData.append('files[0]', imageBlob, filename);
 
-    // ★埋め込み(embeds)を廃止し、通常のメッセージ(content)として送信
+    // 生成した見やすいテキストを content に指定
     const payload = {
       username: "そらしる警報注意報",
-      content: `⚠️ **【気象警報・注意報】現在の地図状況**`
+      content: contentText
     };
     formData.append('payload_json', JSON.stringify(payload));
 
-    // Webhookの実行
     const res = await fetch(webhookUrl, {
       method: 'POST',
-      body: formData // Content-Typeは自動設定されます
+      body: formData
     });
 
     if (res.ok) {
-      console.log("✅ Discordへの通常メッセージ通知が正常に完了しました！");
-    } else {
-      console.error(`❌ Discordへの送信に失敗しました: ${res.status} ${res.statusText}`);
-    }
-
-  } catch (error) {
-    console.error("❌ 処理中にエラーが発生しました:", error);
-    if (browser) await browser.close();
-  }
-}
-
-captureAndNotify();
+      console.log("✅ Discordへの通知が正常に完了しました！
