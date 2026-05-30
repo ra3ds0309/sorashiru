@@ -58,7 +58,7 @@
     /* 🎨【上層】都道府県枠線（pref.png を100%x100%でぴったり背景重ね合わせ） */
     #pref-layer {
       z-index: 2;
-      pointer-events: none; /* マウスイベントなどを透過 */
+      pointer-events: none;
       background-image: url('assets/warning/pref.png');
       background-size: 100% 100%;
       background-position: center;
@@ -132,7 +132,7 @@
       }
     }
 
-    // 3. 気象庁データをリアルタイムパースして集約（★最外殻の配列構造に対応）
+    // 3. 気象庁データをリアルタイムパースして集約（★配列・オブジェクト両対応）
     async function loadWarningData() {
       try {
         const response = await fetch(getCacheBusterUrl('assets/warning/list.txt'), { cache: 'no-store' });
@@ -153,38 +153,38 @@
         areaStatusMap = {};
 
         allData.forEach(provData => {
-          // 気象庁のデータが存在しない、または配列でない場合はスキップ
-          if (!provData || !Array.isArray(provData)) return;
+          if (!provData) return;
           
-          // ─── 【重要】最外殻の配列をループ処理 ───
-          provData.forEach(report => {
-            if (!report.areaTypes) return;
+          // 【超安全化】配列が来てもオブジェクトが来てもループできるように配列へ統一
+          const reports = Array.isArray(provData) ? provData : [provData];
+          
+          reports.forEach(report => {
+            if (!report || !report.areaTypes) return;
             
             report.areaTypes.forEach(type => {
               if (!type.areas) return;
               
               type.areas.forEach(area => {
                 const areaCode = area.code; 
+                if (!areaCode || !area.warnings) return;
 
-                if (area.warnings) {
-                  area.warnings.forEach(warn => {
-                    // 「発表」「継続」「切替」の状態のみを色塗りの対象にする
-                    if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
-                      const meta = codeMap[warn.code];
-                      if (meta) {
-                        // 既存の登録されているランクより高い場合のみ上書き（最大警戒を保持）
-                        const currentMax = areaStatusMap[areaCode] ? areaStatusMap[areaCode].rank : -1;
-                        if (meta.rank > currentMax) {
-                          areaStatusMap[areaCode] = {
-                            rank: meta.rank,
-                            color: meta.color,
-                            name: meta.name
-                          };
-                        }
+                area.warnings.forEach(warn => {
+                  // 「発表」「継続」「切替」の状態のみを色塗りの対象にする
+                  if (warn.status === "発表" || warn.status === "継続" || warn.status === "切替") {
+                    const meta = codeMap[warn.code];
+                    if (meta) {
+                      // 既存の登録されているランクより高い場合のみ上書き（最大警戒を保持）
+                      const currentMax = areaStatusMap[areaCode] ? areaStatusMap[areaCode].rank : -1;
+                      if (meta.rank > currentMax) {
+                        areaStatusMap[areaCode] = {
+                          rank: meta.rank,
+                          color: meta.color,
+                          name: meta.name
+                        };
                       }
                     }
-                  });
-                }
+                  }
+                });
               });
             });
           });
