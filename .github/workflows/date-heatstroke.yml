@@ -1,0 +1,35 @@
+name: "熱中症 データ読み込み"
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # 毎日日本時間朝5時（UTC 20:00）に自動実行
+  workflow_dispatch:      # 手動で今すぐ実行するボタン
+
+permissions:
+  contents: write         # 取得したデータをリポジトリに保存する権限
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: フォルダの作成 (念のため)
+        run: mkdir -p assets/heatstroke
+
+      - name: APIから最新JSONをダウンロードして保存
+        run: |
+          curl -L -o assets/heatstroke/data.json "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSS4eaa4vFTLV_CsILSvMT2N7MZ7Po5Dg47XFB7ukaKz6OMSObw_21oq7ObKrxPiqudx7JCpoCnkrdTeYxjyg5OiqgZh5_BieBq13D4u-huqtvkStWrN4lkt__uloCVBYueIs03mLe-0dcJLwakdkSLHW-mEI-yLhrs-E8uYvg2bBc8xLtW-5_Utu7NSjQUgMhop8qkZT6Rgni54AaN2bCOavvehfBhOd1vQYepZJsueZhEDtlkv3gcdu-X_smse_PKineogQAKK40I59Yz5nNnBU5eaw&lib=MB-5AExKiNQZ8am9veRU5nzjDR3pfYmDk"
+
+      - name: 変更があったらGitHubにプッシュする
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add assets/heatstroke/data.json
+          if ! git diff --cached --quiet; then
+            git commit -m "🔄 熱中症データを更新"
+            git push
+          else
+            echo "データに変更はありませんでした。"
+          fi
