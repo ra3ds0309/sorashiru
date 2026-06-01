@@ -14,7 +14,7 @@
       width: 1920px;
       height: 1080px;
       overflow: hidden;
-      background: #000; /* 読み込み前の隙間用 */
+      background: #000;
     }
 
     /* 16:9 ベースコンテナ */
@@ -23,7 +23,6 @@
       height: 1080px;
       position: relative;
       overflow: hidden;
-      /* 背景画像を100% 100%で配置 */
       background-image: url('assets/heatstroke/cover.png');
       background-size: 100% 100%;
       background-position: center;
@@ -40,14 +39,13 @@
       z-index: 1;
     }
 
-    /* SVG自体のサイズをコンテナに合わせる */
     .map-layer svg {
       width: 100%;
       height: 100%;
       display: block;
     }
 
-    /* 📝 コピーライト（以前の共有スタイル） */
+    /* 📝 コピーライト */
     .copyright-tag {
       position: absolute;
       top: 30px;
@@ -64,32 +62,127 @@
 <body>
 
   <div class="viewport">
-    <!-- コピーライト -->
     <div class="copyright-tag">© Sorashiru</div>
 
-    <!-- 地図を配置するレイヤー -->
     <div id="js-map-container" class="map-layer"></div>
   </div>
 
   <script>
-    /**
-     * 地図SVGの読み込み
-     * 今後、色を塗るなどの操作ができるように fetch で読み込みます
-     */
-    async function initMap() {
+    // 🎨 暑さ指数 (WBGT) の色分け基準
+    const WBGT_COLORS = {
+      danger: '#ff0055',       // 31以上：危険
+      severe: '#ff9900',       // 28以上31未満：厳重警戒
+      warning: '#ffee00',      // 25以上28未満：警戒
+      attention: '#00ccff',    // 25未満：注意
+      default: 'rgba(255, 255, 255, 0.08)' // データがない場合の初期色
+    };
+
+    // WBGTの値から色を決定する関数
+    function getColorForWBGT(value) {
+      if (value >= 31) return WBGT_COLORS.danger;
+      if (value >= 28) return WBGT_COLORS.severe;
+      if (value >= 25) return WBGT_COLORS.warning;
+      return WBGT_COLORS.attention;
+    }
+
+    // キャッシュバスター付きURL生成
+    function getCacheBusterUrl(url) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}_=${Date.now()}`;
+    }
+
+    // 1. 地図SVGファイルの読み込み
+    async function loadMapSVG() {
+      const response = await fetch(getCacheBusterUrl('assets/heatstroke/map.svg'), { cache: 'no-store' });
+      if (!response.ok) throw new Error("map.svg が見つかりません");
+      const svgText = await response.text();
+      document.getElementById('js-map-container').innerHTML = svgText;
+      console.log("🗺️ 地図SVGを配置しました。");
+    }
+
+    // 2. name.txt を読み込んで { "JSONでの名前": "SVGのID" } のマップを作る
+    async function loadNameMapping() {
+      const response = await fetch(getCacheBusterUrl('assets/heatstroke/name.txt'), { cache: 'no-store' });
+      if (!response.ok) throw new Error("name.txt が見つかりません");
+      const text = await response.text();
+      
+      const mapping = {}; // 例: { "宗谷": "011", "上川・留萌": "012" }
+      const lines = text.split('\n');
+
+      lines.forEach(line => {
+        line = line.trim();
+        if (!line) return;
+
+        // 「011[宗谷]」のような形式から「011」と「宗谷」を抽出する正規表現
+        const match = line.match(/^([^\[]+)\[([^\]]+)\]/);
+        if (match) {
+          const svgId = match[1].trim();     // 011
+          const jsonName = match[2].trim();   // 宗谷
+          mapping[jsonName] = svgId;
+        }
+      });
+
+      console.log("📋 地域名マッピングの読み込み完了:", mapping);
+      return mapping;
+    }
+
+    // 3. メイン処理：JSONデータを取得して地図に色を塗る
+    async function main() {
       try {
-        const response = await fetch(`assets/heatstroke/map.svg?_=${Date.now()}`, { cache: 'no-store' });
-        if (!response.ok) throw new Error("SVGが見つかりません");
+        // SVG地図と名前マッピングを同時に読み込み
+        const [_, nameMap] = await Promise.all([
+          loadMapSVG(),
+          loadNameMapping()
+        ]);
+
+        // 熱中症データの取得
+        const apiUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSS4eaa4vFTLV_CsILSvMT2N7MZ7Po5Dg47XFB7ukaKz6OMSObw_21oq7ObKrxPiqudx7JCpoCnkrdTeYxjyg5OiqgZh5_BieBq13D4u-huqtvkStWrN4lkt__uloCVBYueIs03mLe-0dcJLwakdkSLHW-mEI-yLhrs-E8uYvg2bBc8xLtW-5_Utu7NSjQUgMhop8qkZT6Rgni54AaN2bCOavvehfBhOd1vQYepZJsueZhEDtlkv3gcdu-X_smse_PKineogQAKK40I59Yz5nNnBU5eaw&lib=MB-5AExKiNQZ8am9veRU5nzjDR3pfYmDk";
         
-        const svgText = await response.text();
-        document.getElementById('js-map-container').innerHTML = svgText;
-        console.log("🗺️ 地図を100%サイズで配置しました。");
+        const response = await fetch(getCacheBusterUrl(apiUrl), { cache: 'no-store' });
+        const resData = await response.json();
+
+        if (resData.status !== "success" || !resData.data) {
+          throw new Error("JSONデータの取得ステータスが success ではないか、データが空です。");
+        }
+
+        // today（本日）のデータを取得
+        const todayData = resData.data.today;
+        if (!todayData || !todayData.wbgt) {
+          throw new Error("today または wbgt データが見つかりません。");
+        }
+
+        console.log("☀️ 本日のWBGTデータを解析します...", todayData.wbgt);
+
+        // JSONの中の地域名（areaName）でループを回す
+        Object.keys(todayData.wbgt).forEach(areaName => {
+          const wbgtValue = todayData.wbgt[areaName]; // WBGTの値 (例: 24)
+          const color = getColorForWBGT(wbgtValue);   // 対応する色
+          
+          // nameMap を使って JSONの地域名 から SVGのID を引っ張る
+          const svgId = nameMap[areaName];
+
+          if (svgId) {
+            // SVG内の path や polygon などの要素をIDで探す
+            const element = document.getElementById(svgId);
+            if (element) {
+              element.style.fill = color; // 色を適用
+            } else {
+              console.warn(`⚠️ SVG内に ID: "${svgId}" (${areaName}) の要素が見つかりません。`);
+            }
+          } else {
+            console.warn(`⚠️ name.txt に「${areaName}」の定義がありません。`);
+          }
+        });
+
+        console.log("🎨 すべての地域の塗りつぶしが完了しました！");
+
       } catch (e) {
-        console.error("❌ エラー:", e);
+        console.error("❌ 処理中にエラーが発生しました:", e);
       }
     }
 
-    window.addEventListener('DOMContentLoaded', initMap);
+    // 画面が読み込まれたら実行
+    window.addEventListener('DOMContentLoaded', main);
   </script>
 </body>
 </html>
