@@ -138,7 +138,7 @@
         // 熱中症データの取得
         const apiUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSS4eaa4vFTLV_CsILSvMT2N7MZ7Po5Dg47XFB7ukaKz6OMSObw_21oq7ObKrxPiqudx7JCpoCnkrdTeYxjyg5OiqgZh5_BieBq13D4u-huqtvkStWrN4lkt__uloCVBYueIs03mLe-0dcJLwakdkSLHW-mEI-yLhrs-E8uYvg2bBc8xLtW-5_Utu7NSjQUgMhop8qkZT6Rgni54AaN2bCOavvehfBhOd1vQYepZJsueZhEDtlkv3gcdu-X_smse_PKineogQAKK40I59Yz5nNnBU5eaw&lib=MB-5AExKiNQZ8am9veRU5nzjDR3pfYmDk";
         
-        const response = await fetch(getCacheBusterUrl(apiUrl), { cache: 'no-store' });
+        const response = await fetch(apiUrl, { cache: 'no-store' });
         const resData = await response.json();
 
         if (resData.status !== "success" || !resData.data) {
