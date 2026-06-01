@@ -1,1 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>そらしる熱中症警戒情報</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght=500;700;900&family=Roboto:wght=400;700&display=swap" rel="stylesheet">
 
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #111317;
+      color: #ffffff;
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+
+    /* 16:9 全面のコンテナ */
+    .viewport {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+      background-image: url('assets/warning/cover.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      display: flex;
+    }
+
+    /* 📝 右上のコピーライト（共有スタイル） */
+    .copyright-tag {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      color: rgba(255, 255, 255, 0.1);
+      font-family: 'Roboto', sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      z-index: 4;
+    }
+
+    /* 📊 左側：情報表示パネル */
+    .info-panel {
+      width: 550px;
+      height: 100%;
+      background: rgba(20, 23, 30, 0.85);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 50px;
+      display: flex;
+      flex-direction: column;
+      z-index: 3;
+    }
+
+    .brand-title {
+      font-size: 24px;
+      font-weight: 900;
+      color: #00ccff;
+      letter-spacing: 0.05em;
+      margin-bottom: 5px;
+    }
+
+    .main-title {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+
+    .update-time {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 40px;
+    }
+
+    /* アラート表示枠 */
+    .alert-box {
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 6px solid rgba(255, 255, 255, 0.2);
+      padding: 20px;
+      border-radius: 4px;
+      margin-bottom: 25px;
+    }
+
+    .alert-box.active-special {
+      border-color: #ff0055;
+      background: rgba(255, 0, 85, 0.05);
+    }
+
+    .alert-box.active-normal {
+      border-color: #ff9900;
+      background: rgba(255, 153, 0, 0.05);
+    }
+
+    .alert-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 5px;
+    }
+
+    .alert-status {
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    /* 🎨 WBGT凡例（色の基準） */
+    .legend-container {
+      margin-top: auto;
+    }
+
+    .legend-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.4);
+      margin-bottom: 15px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .legend-color {
+      width: 35px;
+      height: 20px;
+      border-radius: 3px;
+      margin-right: 15px;
+    }
+
+    /* 🗺️ 右側：地図表示エリア */
+    .map-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 50px;
+    }
+
+    .map-layer {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #heatstroke-map-layer svg {
+      width: 90%;
+      height: 90%;
+    }
+
+    /* 地図のデフォルトスタイル */
+    #heatstroke-map-layer path, #heatstroke-map-layer polygon {
+      fill: rgba(255, 255, 255, 0.08);
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 1px;
+      transition: fill 0.6s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="viewport">
+    <!-- コピーライト -->
+    <div class="copyright-tag">© Sorashiru</div>
+
+    <!-- 左側：情報パネル -->
+    <div class="info-panel">
+      <div class="brand-title">SORASHIRU</div>
+      <div class="main-title">熱中症警戒情報<br><span style="font-size: 28px; color: rgba(255,255,255,0.8);">[今日の本日の予測]</span></div>
+      <div id="js-update-time" class="update-time">データ取得中...</div>
+
+      <!-- 特別警戒アラート枠 -->
+      <div id="js-box-special" class="alert-box">
+        <div class="alert-label">熱中症特別警戒アラート</div>
+        <div id="js-status-special" class="alert-status">確認中...</div>
+      </div>
+
+      <!-- 警戒アラート枠 -->
+      <div id="js-box-normal" class="alert-box">
+        <div class="alert-label">熱中症警戒アラート</div>
+        <div id="js-status-normal" class="alert-status">確認中...</div>
+      </div>
+
+      <!-- 凡例 -->
+      <div class="legend-container">
+        <div class="legend-title">暑さ指数 (WBGT) の目安</div>
+        <div class="legend-item"><div class="legend-color" style="background: #ff0055;"></div> 31以上：危険 (運動は原則中止)</div>
+        <div class="legend-item"><div class="legend-color" style="background: #ff9900;"></div> 28〜31：厳重警戒 (激しい運動は中止)</div>
+        <div class="legend-item"><div class="legend-color" style="background: #ffee00;"></div> 25〜28：警戒 (積極的に休憩)</div>
+        <div class="legend-item"><div class="legend-color" style="background: #00ccff;"></div> 25未満：注意</div>
+      </div>
+    </div>
+
+    <!-- 右側：地図レイヤー -->
+    <div class="map-container">
+      <div id="heatstroke-map-layer" class="map-layer"></div>
+    </div>
+  </div>
+
+  <script>
+    // 🎨 WBGTの値に応じた色分けルール
+    const COLOR_RULES = {
+      danger: '#ff0055',       // 31以上 (危険)
+      severe: '#ff9900',       // 28以上31未満 (厳重警戒)
+      warning: '#ffee00',      // 25以上28未満 (警戒)
+      attention: '#00ccff',    // 25未満 (注意)
+      default: 'rgba(255, 255, 255, 0.08)'
+    };
+
+    function getWBGTColor(value) {
+      if (value >= 31) return COLOR_RULES.danger;
+      if (value >= 28) return COLOR_RULES.severe;
+      if (value >= 25) return COLOR_RULES.warning;
+      return COLOR_RULES.attention;
+    }
+
+    // 1. 熱中症用の新しいSVG地図を配置
+    async function loadMapSVG() {
+      try {
+        // ※ 読み込む地図ファイル名を指定（assets/warning/heatstroke_map.svg と仮定）
+        const response = await fetch(`assets/warning/heatstroke_map.svg?_=${Date.now()}`, { cache: 'no-store' });
+        const svgText = await response.text();
+        document.getElementById('heatstroke-map-layer').innerHTML = svgText;
+        console.log("🗺️ 熱中症用地図の配置が完了しました。");
+      } catch (e) {
+        console.error("❌ SVG地図の読み込みに失敗しました:", e);
+      }
+    }
+
+    // 2. リアルタイムJSONデータの取得と反映
+    async function loadHeatstrokeData() {
+      const apiUrl = "https://script.googleusercontent.com/macros/echo?user_content_key=AUkAhnSS4eaa4vFTLV_CsILSvMT2N7MZ7Po5Dg47XFB7ukaKz6OMSObw_21oq7ObKrxPiqudx7JCpoCnkrdTeYxjyg5OiqgZh5_BieBq13D4u-huqtvkStWrN4lkt__uloCVBYueIs03mLe-0dcJLwakdkSLHW-mEI-yLhrs-E8uYvg2bBc8xLtW-5_Utu7NSjQUgMhop8qkZT6Rgni54AaN2bCOavvehfBhOd1vQYepZJsueZhEDtlkv3gcdu-X_smse_PKineogQAKK40I59Yz5nNnBU5eaw&lib=MB-5AExKiNQZ8am9veRU5nzjDR3pfYmDk";
+
+      try {
+        const response = await fetch(`${apiUrl}&_=${Date.now()}`, { cache: 'no-store' });
+        const resData = await response.json();
+
+        if (resData.status !== "success" || !resData.data) return;
+        const today = resData.data.today;
+
+        // 🕐 更新日時の表示変更
+        const updateDate = new Date(resData.update);
+        document.getElementById('js-update-time').innerText = `発表: ${updateDate.getFullYear()}年${updateDate.getMonth() + 1}月${updateDate.getDate()}日 ${String(updateDate.getHours()).padStart(2, '0')}:${String(updateDate.getMinutes()).padStart(2, '0')}`;
+
+        // 🚨 特別警戒アラート状況のUI更新
+        const specialBox = document.getElementById('js-box-special');
+        const specialStatus = document.getElementById('js-status-special');
+        if (today.alerts.special_alert && today.alerts.special_alert.length > 0) {
+          specialBox.className = "alert-box active-special";
+          specialStatus.innerText = `${today.alerts.special_alert.length} 地域に発表中`;
+          specialStatus.style.color = COLOR_RULES.danger;
+        } else {
+          specialBox.className = "alert-box";
+          specialStatus.innerText = "発表なし";
+          specialStatus.style.color = "";
+        }
+
+        // ⚠️ 警戒アラート状況のUI更新
+        const normalBox = document.getElementById('js-box-normal');
+        const normalStatus = document.getElementById('js-status-normal');
+        if (today.alerts.alert && today.alerts.alert.length > 0) {
+          normalBox.className = "alert-box active-normal";
+          normalStatus.innerText = `${today.alerts.alert.length} 地域に発表中`;
+          normalStatus.style.color = COLOR_RULES.severe;
+        } else {
+          normalBox.className = "alert-box";
+          normalStatus.innerText = "発表なし";
+          normalStatus.style.color = "";
+        }
+
+        // 🎨 地図の全要素を一度初期化してから、WBGT値で色を塗る
+        const mapContainer = document.getElementById('heatstroke-map-layer');
+        if (mapContainer && today.wbgt) {
+          const allPaths = mapContainer.querySelectorAll('path, polygon, g');
+          allPaths.forEach(el => { el.style.fill = ''; }); // リセット
+
+          // 各地域のWBGT値をループして、対応するIDの要素を染める
+          Object.keys(today.wbgt).forEach(areaName => {
+            const value = today.wbgt[areaName];
+            const color = getWBGTColor(value);
+            
+            // IDが「東京」「愛知」「上川・留萌」などの要素を探す
+            const element = document.getElementById(areaName);
+            if (element) {
+              element.style.fill = color;
+            }
+          });
+          console.log("🎨 地図のWBGTカラー同期が完了しました。");
+        }
+
+      } catch (e) {
+        console.error("❌ 熱中症データの解析に失敗しました:", e);
+      }
+    }
+
+    // メイン処理
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadMapSVG();
+      await loadHeatstrokeData();
+    });
+  </script>
+</body>
+</html>
