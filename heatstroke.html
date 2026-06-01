@@ -6,7 +6,7 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@500&family=Roboto:wght@400&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,6 +43,20 @@
       display: block;
     }
 
+    /* 🕒 ご指定の発表日時スタイル */
+    .report-time-tag {
+      position: absolute;
+      top: 125px;
+      left: 50px;
+      color: #ffffff;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 28px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      z-index: 4;
+    }
+
     .copyright-tag {
       position: absolute;
       top: 30px;
@@ -59,6 +73,8 @@
 <body>
 
   <div class="viewport">
+    <div id="js-report-time" class="report-time-tag"></div>
+
     <div class="copyright-tag">© Sorashiru</div>
     <div id="js-map-container" class="map-layer"></div>
   </div>
@@ -123,12 +139,20 @@
           loadNameMapping()
         ]);
 
-        // 🌟 変更点：外部のAPIではなく、自分自身のサーバーに保存されたjsonを読み込む
         const dataUrl = 'assets/heatstroke/data.json';
         const response = await fetch(getCacheBusterUrl(dataUrl), { cache: 'no-store' });
         const resData = await response.json();
 
         if (resData.status !== "success" || !resData.data) return;
+
+        // 🕒 発表日時の反映処理
+        if (resData.data.report_wbgt) {
+          const reportDate = new Date(resData.data.report_wbgt);
+          const day = reportDate.getDate();
+          const hours = reportDate.getHours();
+          document.getElementById('js-report-time').innerText = `${day}日 ${hours}時発表`;
+        }
+
         const todayData = resData.data.today;
         if (!todayData || !todayData.wbgt) return;
 
@@ -145,7 +169,7 @@
             }
           }
         });
-        console.log("🎨 データからの色塗りが完了しました！");
+        console.log("🎨 データからの色塗りと発表日時の更新が完了しました！");
 
       } catch (e) {
         console.error("❌ 処理中にエラーが発生しました:", e);
