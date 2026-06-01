@@ -1,0 +1,48 @@
+name: "熱中症"
+
+on:
+  schedule:
+    - cron: '0 21 * * *'  # 毎日日本時間午前6時（UTC 21:00）に実行
+  workflow_dispatch:      # 手動で今すぐ実行できるボタン
+
+permissions:
+  contents: write         # 撮影したスクショ画像をリポジトリに保存する権限
+
+jobs:
+  capture-and-post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Node.js のセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 必要なパッケージの自動インストール
+        run: |
+          npm init -y
+          npm install puppeteer http-server
+
+      - name: ローカルWEBサーバーの起動
+        run: |
+          npx http-server . -p 8080 &
+          sleep 3 # サーバーが立ち上がるのを少し待つ
+
+      - name: スクショ撮影 ＆ Discord投稿スクリプトの実行
+        env:
+          HEATSTROKE_WEBHOOK_URL: ${{ secrets.HEATSTROKE_WEBHOOK_URL }}
+        run: node capture-heatstroke.js
+
+      - name: 撮影したスクショを履歴としてリポジトリに保存
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add heatstroke-screenshots/
+          if ! git diff --cached --quiet; then
+            git commit -m "📸 熱中症スクショ画像を自動保存"
+            git push
+          else
+            echo "保存する新しいスクショはありませんでした。"
+          fi
