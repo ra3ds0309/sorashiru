@@ -142,8 +142,19 @@
         // 🕒 発表日時の反映処理
         if (resData.data.report_wbgt) {
           const reportDate = new Date(resData.data.report_wbgt);
-          const day = reportDate.getDate();
-          const hours = reportDate.getHours();
+          
+          // 🌟 タイムゾーン環境に依存せず、常に日本時間(JST)でフォーマットを固定する
+          const formatter = new Intl.DateTimeFormat('ja-JP', {
+            timeZone: 'Asia/Tokyo',
+            day: 'numeric',
+            hour: 'numeric',
+            hourCycle: 'h23'
+          });
+          
+          const parts = formatter.formatToParts(reportDate);
+          const day = parts.find(p => p.type === 'day').value;
+          const hours = parts.find(p => p.type === 'hour').value;
+
           document.getElementById('js-report-time').innerText = `${day}日 ${hours}時発表`;
         }
 
@@ -157,18 +168,16 @@
 
         // 色塗りロジック
         Object.keys(todayData.wbgt).forEach(areaName => {
-          // 'over31' 自体は地域名ではないため処理をスキップ
           if (areaName === 'over31') return;
 
-          // 🌟 新しい判定システム（優先度の高い順）
-          let color = WBGT_COLORS.attention; // デフォルトは attention (注意)
+          let color = WBGT_COLORS.attention;
 
           if (specialAlerts.includes(areaName)) {
-            color = WBGT_COLORS.danger;       // special_alert にあれば danger
+            color = WBGT_COLORS.danger;
           } else if (normalAlerts.includes(areaName)) {
-            color = WBGT_COLORS.severe;       // alert にあれば severe
+            color = WBGT_COLORS.severe;
           } else if (over31List.includes(areaName)) {
-            color = WBGT_COLORS.warning;      // over31 にあれば warning
+            color = WBGT_COLORS.warning;
           }
 
           const svgId = nameMap[areaName];
@@ -180,7 +189,7 @@
             }
           }
         });
-        console.log("🎨 アラート条件に基づいた色塗りが完了しました！");
+        console.log("🎨 アラート条件に基づいた色塗りと発表日時の更新が完了しました！");
 
       } catch (e) {
         console.error("❌ 処理中にエラーが発生しました:", e);
