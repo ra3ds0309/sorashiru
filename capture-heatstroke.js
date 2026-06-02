@@ -68,18 +68,18 @@ const path = require('path');
         // 🤖 Gemini API を使った概要の自動生成
         const geminiApiKey = process.env.GEMINI_API_KEY;
         if (geminiApiKey) {
-          console.log('🤖 Gemini API を呼び出して天気予報士風の概要を生成中...');
+          console.log('🤖 Gemini API を呼び出して概要を生成中...');
           
           const todayData = resData.data.today || {};
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
           
-          // 気象予報士の役割を与えるプロンプト
+          // 🌟 変更していただいた気象予報士プロンプト
           const prompt = `あなたは優秀な気象予報士です。環境省が発表した以下の熱中症予測データ（JSON）を読み込み、今日の熱中症の警戒状況や全体的な傾向を、テレビの天気予報のように分かりやすく親しみやすい言葉で要約した解説文（150字程度）を作成してください。
 
 【注目・解説すべきポイント、注意点】
 1. 特別警戒アラート（alerts.special_alert）や警戒アラート（alerts.alert）が発表されている地域があれば、必ず具体的な地域名を挙げて強い警戒を呼びかけてください。
 2. 暑さ指数（WBGT）が31以上の「危険」レベル（wbgt.over31）の地域があれば、それも合わせて言及してください。
-3. アラート等が出ていない地域でも、全体的な暑さの傾向を踏まえた水分補給やエアコンの使用など、具体的な対策をアドバイスしてください。
+3. アラート等が出ていない地域でも、全体的な暑さの傾向を踏まえた水分補補給やエアコンの使用など、具体的な対策をアドバイスしてください。
 4. こんにちはなどの前置きはいらないです。
 5. 改行はしないでください。
 6. 太字や斜体などの装飾は行わないでください。
@@ -102,17 +102,27 @@ ${JSON.stringify(todayData, null, 2)}`;
             const geminiJson = await response.json();
             if (geminiJson.candidates && geminiJson.candidates[0]?.content?.parts[0]?.text) {
               geminiSummary = geminiJson.candidates[0].content.parts[0].text.trim();
+            } else {
+              console.error('❌ Geminiからのレスポンス構造が想定外です:', JSON.stringify(geminiJson));
+              geminiSummary = '（Geminiの返却データ構造が異常です）';
             }
           } else {
-            console.error(`❌ Gemini API エラー: ${response.status} ${response.statusText}`);
+            const errText = await response.text();
+            console.error(`❌ Gemini API エラー: ${response.status} ${response.statusText}\n詳細: ${errText}`);
+            geminiSummary = `（Gemini APIエラー: 状態コード ${response.status}）`;
           }
         } else {
-          console.warn('⚠️ GEMINI_API_KEY が設定されていないため、概要の生成をスキップします。');
+          console.warn('⚠️ GEMINI_API_KEY が環境変数に設定されていません。');
+          geminiSummary = '（GEMINI_API_KEY未設定エラー）';
         }
       }
+    } else {
+      console.error('❌ data.json が見つかりません。パスを確認してください:', dataPath);
+      geminiSummary = '（data.json読み込み失敗）';
     }
   } catch (e) {
-    console.error('❌ JSON読み込みまたはGemini通信中にエラーが発生しました:', e);
+    console.error('❌ 処理中に例外エラーが発生しました:', e);
+    geminiSummary = `（システムエラー: ${e.message}）`;
   }
 
   // 4. Discord Webhookへの送信処理
@@ -123,7 +133,7 @@ ${JSON.stringify(todayData, null, 2)}`;
   }
 
   // 💬 ご指定のフォーマットでメッセージを組み立て
-  const discordMessage = `☀️ **【きょうの熱中症警戒情報】** ${reportTimeText} 環境省発表\n${geminiSummary}`;
+  const discordMessage = `**【きょうの熱中症警戒情報】** ${reportTimeText} 環境省発表\n${geminiSummary}`;
 
   console.log('🚀 Discordへ画像と文章を送信中...');
 
