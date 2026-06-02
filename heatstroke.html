@@ -80,20 +80,14 @@
   </div>
 
   <script>
+    // 🎨 アラート区分ごとの色定義
     const WBGT_COLORS = {
-      danger: '#1D0022',       // 31以上：危険
-      severe: '#A000A0',       // 28以上31未満：厳重警戒
-      warning: '#FF1F25',      // 25以上28未満：警戒
-      attention: '#595959',    // 25未満：注意
+      danger: '#1D0022',       // 特別警戒アラート (special_alert)
+      severe: '#A000A0',       // 警戒アラート (alert)
+      warning: '#FF1F25',      // 危険 (over31)
+      attention: '#595959',    // 注意 (上記以外)
       default: '#595959'
     };
-
-    function getColorForWBGT(value) {
-      if (value >= 31) return WBGT_COLORS.danger;
-      if (value >= 28) return WBGT_COLORS.severe;
-      if (value >= 25) return WBGT_COLORS.warning;
-      return WBGT_COLORS.attention;
-    }
 
     function getCacheBusterUrl(url) {
       const separator = url.includes('?') ? '&' : '?';
@@ -156,10 +150,27 @@
         const todayData = resData.data.today;
         if (!todayData || !todayData.wbgt) return;
 
+        // 各種アラートリストの抽出 (存在しない場合は空配列)
+        const specialAlerts = todayData.alerts?.special_alert || [];
+        const normalAlerts = todayData.alerts?.alert || [];
+        const over31List = todayData.wbgt?.over31 || [];
+
         // 色塗りロジック
         Object.keys(todayData.wbgt).forEach(areaName => {
-          const wbgtValue = todayData.wbgt[areaName];
-          const color = getColorForWBGT(wbgtValue);
+          // 'over31' 自体は地域名ではないため処理をスキップ
+          if (areaName === 'over31') return;
+
+          // 🌟 新しい判定システム（優先度の高い順）
+          let color = WBGT_COLORS.attention; // デフォルトは attention (注意)
+
+          if (specialAlerts.includes(areaName)) {
+            color = WBGT_COLORS.danger;       // special_alert にあれば danger
+          } else if (normalAlerts.includes(areaName)) {
+            color = WBGT_COLORS.severe;       // alert にあれば severe
+          } else if (over31List.includes(areaName)) {
+            color = WBGT_COLORS.warning;      // over31 にあれば warning
+          }
+
           const svgId = nameMap[areaName];
 
           if (svgId) {
@@ -169,7 +180,7 @@
             }
           }
         });
-        console.log("🎨 データからの色塗りと発表日時の更新が完了しました！");
+        console.log("🎨 アラート条件に基づいた色塗りが完了しました！");
 
       } catch (e) {
         console.error("❌ 処理中にエラーが発生しました:", e);
